@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   jsonb,
   numeric,
@@ -7,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -31,27 +33,46 @@ export const approvalRisk = pgEnum("approval_risk", [
   "urgent",
 ]);
 
-export const organizations = pgTable("organizations", {
-  id: varchar("id", { length: 120 }).primaryKey(),
-  workspaceLabel: varchar("workspace_label", { length: 160 }).notNull(),
-  name: varchar("name", { length: 160 }).notNull(),
-  businessType: varchar("business_type", { length: 160 }).notNull(),
-  ownerName: varchar("owner_name", { length: 160 }).notNull(),
-  toneGuidance: text("tone_guidance").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: varchar("id", { length: 120 }).primaryKey(),
+    clerkOrganizationId: varchar("clerk_organization_id", { length: 120 }),
+    workspaceLabel: varchar("workspace_label", { length: 160 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    businessType: varchar("business_type", { length: 160 }).notNull(),
+    ownerName: varchar("owner_name", { length: 160 }).notNull(),
+    toneGuidance: text("tone_guidance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    clerkOrganizationIdIdx: uniqueIndex("organizations_clerk_org_id_idx").on(
+      table.clerkOrganizationId,
+    ),
+  }),
+);
 
-export const memberships = pgTable("memberships", {
-  id: varchar("id", { length: 120 }).primaryKey(),
-  organizationId: varchar("organization_id", { length: 120 })
-    .references(() => organizations.id)
-    .notNull(),
-  clerkUserId: varchar("clerk_user_id", { length: 120 }).notNull(),
-  displayName: varchar("display_name", { length: 160 }).notNull(),
-  role: teamRole("role").notNull(),
-  canApprove: boolean("can_approve").default(false).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const memberships = pgTable(
+  "memberships",
+  {
+    id: varchar("id", { length: 120 }).primaryKey(),
+    organizationId: varchar("organization_id", { length: 120 })
+      .references(() => organizations.id)
+      .notNull(),
+    clerkUserId: varchar("clerk_user_id", { length: 120 }).notNull(),
+    displayName: varchar("display_name", { length: 160 }).notNull(),
+    role: teamRole("role").notNull(),
+    canApprove: boolean("can_approve").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    organizationUserIdx: uniqueIndex("memberships_org_user_idx").on(
+      table.organizationId,
+      table.clerkUserId,
+    ),
+    clerkUserIdx: index("memberships_clerk_user_idx").on(table.clerkUserId),
+  }),
+);
 
 export const clients = pgTable("clients", {
   id: varchar("id", { length: 120 }).primaryKey(),

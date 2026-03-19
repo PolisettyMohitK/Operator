@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { UserButton } from "@clerk/nextjs";
+import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import {
   Activity,
   BellRing,
@@ -12,8 +12,9 @@ import {
   WalletCards,
 } from "lucide-react";
 
-import { workspace } from "@/lib/operator/mock-data";
 import { hasClerkPublishableKey } from "@/lib/auth/clerk";
+import { getViewerContext } from "@/lib/operator/datalayer/viewer-context";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const appNavigation = [
@@ -34,13 +35,15 @@ type AppShellProps = Readonly<{
   description: string;
 }>;
 
-export function AppShell({
+export async function AppShell({
   children,
   activeHref,
   title,
   description,
 }: AppShellProps) {
-  const showUserButton = hasClerkPublishableKey(process.env);
+  const showClerkControls = hasClerkPublishableKey(process.env);
+  const viewerContext = await getViewerContext();
+  const businessName = viewerContext?.businessName ?? "Operator Workspace";
 
   return (
     <div className="min-h-screen bg-[color:var(--surface-muted)]">
@@ -51,7 +54,7 @@ export function AppShell({
               <p className="text-xs uppercase tracking-[0.22em] text-white/65">
                 Workspace
               </p>
-              <h2 className="mt-3 font-serif text-3xl">{workspace.businessName}</h2>
+              <h2 className="mt-3 font-serif text-3xl">{businessName}</h2>
               <p className="mt-2 text-sm leading-6 text-white/75">
                 Operator keeps overdue cash, approvals, and outbound follow-ups in
                 one visible system.
@@ -68,11 +71,11 @@ export function AppShell({
                     href={item.href}
                     className={cn(
                       "flex items-center gap-3 rounded-[18px] px-4 py-3 text-sm font-medium transition",
-                      item.href === activeHref
-                        ? "bg-[color:rgba(24,59,78,0.08)] text-[color:var(--accent)]"
-                        : "text-[color:var(--muted-foreground)] hover:bg-white hover:text-[color:var(--foreground)]",
-                    )}
-                  >
+                       item.href === activeHref
+                         ? "bg-[color:rgba(24,59,78,0.08)] text-[color:var(--accent)]"
+                         : "text-[color:var(--muted-foreground)] hover:bg-[color:var(--surface-elevated)] hover:text-[color:var(--foreground)]",
+                     )}
+                   >
                     <Icon className="size-4" />
                     {item.label}
                   </Link>
@@ -96,14 +99,28 @@ export function AppShell({
                   {description}
                 </p>
               </div>
-              <Link
-                href="/app/onboarding"
-                className="inline-flex items-center justify-center rounded-full border border-[color:var(--border-strong)] bg-white px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]"
-              >
-                View self-serve onboarding
-              </Link>
-              {showUserButton ? (
-                <div className="flex justify-end">
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <ThemeToggle />
+                <Link
+                  href="/app/onboarding"
+                  className="inline-flex items-center justify-center rounded-full border border-[color:var(--border-strong)] bg-[color:var(--surface-elevated)] px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]"
+                >
+                  View self-serve onboarding
+                </Link>
+              </div>
+              {showClerkControls ? (
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  <OrganizationSwitcher
+                    afterCreateOrganizationUrl="/app"
+                    afterSelectOrganizationUrl="/app"
+                    afterSelectPersonalUrl="/app"
+                    appearance={{
+                      elements: {
+                        organizationSwitcherTrigger:
+                          "rounded-full border border-[color:var(--border-strong)] bg-[color:var(--surface-elevated)] px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] shadow-none",
+                      },
+                    }}
+                  />
                   <UserButton />
                 </div>
               ) : null}

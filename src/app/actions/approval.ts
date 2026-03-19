@@ -1,83 +1,53 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
 
-import { getDb } from "@/lib/operator/db/client";
-import { approvalItems, memberships } from "@/lib/operator/db/schema";
-import { advanceApprovalItem } from "@/lib/operator/domain/approval-policy";
+import {
+  assertApprovalMutationAccess,
+  requireViewerContext,
+} from "@/lib/operator/datalayer/viewer-context";
+import { mutateApprovalItemWithMembership } from "@/lib/operator/datalayer/approval-mutations";
+import { dispatchApprovalPrompts } from "@/lib/operator/delivery/approval-prompts";
 
-async function mutateApprovalItem(
-  id: string,
-  actorId: string,
-  action: "approve" | "reject",
-) {
-  const db = getDb();
+async function mutateApprovalItem(id: string, action: "approve" | "reject") {
+  const viewerContext = await requireViewerContext();
 
-  if (!db) {
-    throw new Error("DATABASE_URL is not configured.");
-  }
+  assertApprovalMutationAccess({
+    viewerOrganizationId: viewerContext.organizationId,
+    viewerCanApprove: viewerContext.canApprove,
+    targetOrganizationId: viewerContext.organizationId,
+  });
 
-  const [approvalItem] = await db
-    .select({
-      id: approvalItems.id,
-      invoiceId: approvalItems.invoiceId,
-      status: approvalItems.status,
-      channel: approvalItems.channel,
-      approvedByMembershipId: approvalItems.approvedByMembershipId,
-      rejectedByMembershipId: approvalItems.rejectedByMembershipId,
-    })
-    .from(approvalItems)
-    .where(eq(approvalItems.id, id))
-    .limit(1);
-
-  if (!approvalItem) {
-    throw new Error("Approval item not found.");
-  }
-
-  const [actor] = await db
-    .select({
-      id: memberships.id,
-      name: memberships.displayName,
-      role: memberships.role,
-    })
-    .from(memberships)
-    .where(eq(memberships.id, actorId))
-    .limit(1);
-
-  if (!actor) {
-    throw new Error("Actor not found.");
-  }
-
-  const nextState = advanceApprovalItem(
-    {
-      id: approvalItem.id,
-      invoiceId: approvalItem.invoiceId,
-      status: approvalItem.status,
-      channel: approvalItem.channel,
-      approvedBy: approvalItem.approvedByMembershipId ?? undefined,
-      rejectedBy: approvalItem.rejectedByMembershipId ?? undefined,
-    },
-    actor,
+  await mutateApprovalItemWithMembership({
     action,
-  );
+    actorMembershipId: viewerContext.membershipId,
+    approvalItemId: id,
+    origin: "web",
+    organizationId: viewerContext.organizationId,
+  });
 
-  await db
-    .update(approvalItems)
-    .set({
-      status: nextState.status,
-      approvedByMembershipId: nextState.approvedBy ?? null,
-      rejectedByMembershipId: nextState.rejectedBy ?? null,
-    })
-    .where(eq(approvalItems.id, id));
-
+  revalidatePath("/app");
+  revalidatePath("/app/activity");
   revalidatePath("/app/queue");
 }
 
-export async function approveItem(id: string, actorId: string) {
-  await mutateApprovalItem(id, actorId, "approve");
+export async function approveItem(id: string) {
+  await mutateApprovalItem(id, "approve");
 }
 
-export async function rejectItem(id: string, actorId: string) {
-  await mutateApprovalItem(id, actorId, "reject");
+export async function rejectItem(id: string) {
+  await mutateApprovalItem(id, "reject");
+}
+
+export async function sendApprovalPrompts(id: string) {
+  const viewerContext = await requireViewerContext();
+
+  await dispatchApprovalPrompts({
+    actorMembershipId: viewerContext.membershipId,
+    approvalItemId: id,
+    organizationId: viewerContext.organizationId,
+  });
+
+  revalidatePath("/app/activity");
+  revalidatePath("/app/queue");
 }

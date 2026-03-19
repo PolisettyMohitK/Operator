@@ -1,11 +1,13 @@
 import { AppShell } from "@/components/app/app-shell";
 import { Card } from "@/components/ui/card";
+import { requireViewerContext } from "@/lib/operator/datalayer/viewer-context";
 import { listClientsForPage } from "@/lib/operator/db/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
-  const clients = await listClientsForPage();
+  const viewerContext = await requireViewerContext();
+  const clients = await listClientsForPage(viewerContext.organizationId);
 
   return (
     <AppShell

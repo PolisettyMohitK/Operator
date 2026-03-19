@@ -1,29 +1,26 @@
-import { auth } from "@clerk/nextjs/server";
-
 import { ActivityFeed } from "@/components/app/activity-feed";
 import { AppShell } from "@/components/app/app-shell";
 import { QueueTable } from "@/components/app/queue-table";
 import { StatCard } from "@/components/app/stat-card";
 import { Card } from "@/components/ui/card";
+import { requireViewerContext } from "@/lib/operator/datalayer/viewer-context";
 import {
   listActivityEvents,
   listClientsForPage,
   listDashboardMetrics,
   listQueueItems,
-  resolveActorMembershipId,
 } from "@/lib/operator/db/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppOverviewPage() {
-  const { userId } = await auth();
-  const [queueMetrics, queueItems, activityItems, clients, actorId] =
+  const viewerContext = await requireViewerContext();
+  const [queueMetrics, queueItems, activityItems, clients] =
     await Promise.all([
-      listDashboardMetrics(),
-      listQueueItems(),
-      listActivityEvents(3),
-      listClientsForPage(3),
-      resolveActorMembershipId(userId),
+      listDashboardMetrics(viewerContext.organizationId),
+      listQueueItems(viewerContext.organizationId),
+      listActivityEvents(viewerContext.organizationId, 3),
+      listClientsForPage(viewerContext.organizationId, 3),
     ]);
 
   return (
@@ -39,7 +36,7 @@ export default async function AppOverviewPage() {
               <StatCard key={metric.label} {...metric} />
             ))}
           </div>
-          <QueueTable actorId={actorId} items={queueItems} />
+          <QueueTable canApprove={viewerContext.canApprove} items={queueItems} />
         </div>
         <div className="space-y-5">
           <ActivityFeed items={activityItems} />

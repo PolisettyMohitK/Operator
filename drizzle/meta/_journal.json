@@ -15,6 +15,13 @@
       "when": 1773916507607,
       "tag": "0001_fixed_korg",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773922719082,
+      "tag": "0002_milky_makkari",
+      "breakpoints": true
     }
   ]
 }

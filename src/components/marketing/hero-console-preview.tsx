@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 
 export function HeroConsolePreview() {
   return (
-    <Card className="relative overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,239,229,0.92))] p-5 sm:p-7">
+    <Card className="relative overflow-hidden bg-[linear-gradient(180deg,var(--surface-elevated),var(--surface))] p-5 sm:p-7">
       <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(24,59,78,0.12),transparent_72%)]" />
 
       <div className="relative space-y-6">
@@ -28,7 +28,7 @@ export function HeroConsolePreview() {
           {queueMetrics.slice(0, 4).map((metric) => (
             <div
               key={metric.label}
-              className="rounded-[24px] border border-[color:var(--border)] bg-white/80 p-4"
+              className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4"
             >
               <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted-foreground)]">
                 {metric.label}
@@ -44,7 +44,7 @@ export function HeroConsolePreview() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[24px] border border-[color:var(--border)] bg-[color:rgba(255,255,255,0.86)] p-4">
+          <div className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted-foreground)]">
@@ -63,7 +63,7 @@ export function HeroConsolePreview() {
               {approvalItems.slice(0, 2).map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-[20px] border border-[color:var(--border)] bg-white/90 p-4"
+                  className="rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -106,7 +106,7 @@ export function HeroConsolePreview() {
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              <div className="rounded-[24px] border border-[color:var(--border)] bg-white/80 p-4">
+              <div className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4">
                 <div className="flex items-center gap-2 text-[color:var(--accent)]">
                   <ShieldCheck className="size-4" />
                   <span className="text-xs uppercase tracking-[0.2em]">
@@ -118,7 +118,7 @@ export function HeroConsolePreview() {
                   WhatsApp.
                 </p>
               </div>
-              <div className="rounded-[24px] border border-[color:var(--border)] bg-white/80 p-4">
+              <div className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4">
                 <div className="flex items-center gap-2 text-[color:var(--accent)]">
                   <MailCheck className="size-4" />
                   <span className="text-xs uppercase tracking-[0.2em]">

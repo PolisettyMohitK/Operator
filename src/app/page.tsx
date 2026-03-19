@@ -192,7 +192,11 @@ export default function Home() {
                 serious product surface from day one.
               </p>
             </div>
-            <Button asChild size="lg" className="bg-white text-[color:var(--accent)] hover:bg-[#f6efe6]">
+            <Button
+              asChild
+              size="lg"
+              className="bg-[color:var(--surface-elevated)] text-[color:var(--accent)] hover:bg-[color:var(--surface)]"
+            >
               <Link href="/join-alpha">Request access</Link>
             </Button>
           </div>

@@ -43,7 +43,7 @@ export default function JoinAlphaPage() {
                 <label key={field} className="grid gap-2 text-sm font-medium text-[color:var(--foreground)]">
                   <span>{field}</span>
                   <input
-                    className="rounded-[18px] border border-[color:var(--border)] bg-white px-4 py-3 text-sm outline-none transition focus:border-[color:var(--accent)]"
+                    className="rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] px-4 py-3 text-sm outline-none transition focus:border-[color:var(--accent)]"
                     placeholder={field}
                   />
                 </label>

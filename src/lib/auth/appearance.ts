@@ -1,11 +1,11 @@
 export const clerkAppearance = {
   variables: {
-    colorPrimary: "#183b4e",
-    colorText: "#12202a",
-    colorBackground: "#fbf8f2",
-    colorInputBackground: "#ffffff",
-    colorInputText: "#12202a",
-    colorDanger: "#8c2f2f",
+    colorPrimary: "var(--accent)",
+    colorText: "var(--foreground)",
+    colorBackground: "var(--surface)",
+    colorInputBackground: "var(--surface-elevated)",
+    colorInputText: "var(--foreground)",
+    colorDanger: "var(--warn)",
     borderRadius: "18px",
     fontFamily: "var(--font-body-sans)",
   },
@@ -17,23 +17,23 @@ export const clerkAppearance = {
     headerTitle: "hidden",
     headerSubtitle: "hidden",
     socialButtonsBlockButton:
-      "rounded-[18px] border border-[color:var(--border)] bg-white text-[color:var(--foreground)] shadow-none hover:bg-[color:var(--surface-muted)]",
+      "rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] text-[color:var(--foreground)] shadow-none hover:bg-[color:var(--surface-muted)]",
     socialButtonsBlockButtonText: "font-medium",
     dividerLine: "bg-[color:var(--border)]",
     dividerText: "text-xs uppercase tracking-[0.22em] text-[color:var(--muted-foreground)]",
     formFieldLabel:
       "text-sm font-medium text-[color:var(--foreground)]",
     formFieldInput:
-      "h-12 rounded-[18px] border border-[color:var(--border)] bg-white text-[color:var(--foreground)] shadow-none focus:border-[color:var(--accent)] focus:ring-0",
+      "h-12 rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] text-[color:var(--foreground)] shadow-none focus:border-[color:var(--accent)] focus:ring-0",
     formButtonPrimary:
-      "h-12 rounded-full bg-[color:var(--accent)] text-[color:var(--accent-foreground)] shadow-none hover:bg-[#204b63]",
+      "h-12 rounded-full bg-[color:var(--accent)] text-[color:var(--accent-foreground)] shadow-none hover:bg-[color:var(--accent-strong)]",
     footerActionText: "text-[color:var(--muted-foreground)]",
-    footerActionLink: "font-semibold text-[color:var(--accent)] hover:text-[#204b63]",
+    footerActionLink: "font-semibold text-[color:var(--accent)] hover:text-[color:var(--accent-strong)]",
     identityPreviewText: "text-[color:var(--muted-foreground)]",
     formFieldSuccessText: "text-[color:var(--accent)]",
-    formFieldWarningText: "text-[#8c2f2f]",
+    formFieldWarningText: "text-[color:var(--warn)]",
     alertText: "text-sm",
     otpCodeFieldInput:
-      "rounded-[18px] border border-[color:var(--border)] bg-white text-[color:var(--foreground)] shadow-none",
+      "rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] text-[color:var(--foreground)] shadow-none",
   },
 } as const;

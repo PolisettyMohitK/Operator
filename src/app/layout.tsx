@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import "./globals.css";
 
 const bodySans = Manrope({
@@ -30,9 +31,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${bodySans.variable} ${displaySerif.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full font-sans text-[color:var(--foreground)]">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

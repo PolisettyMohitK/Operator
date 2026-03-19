@@ -1,21 +1,18 @@
 import { ArrowRight, Clock3 } from "lucide-react";
 
-import { approveItem, rejectItem } from "@/app/actions/approval";
+import { approveItem, rejectItem, sendApprovalPrompts } from "@/app/actions/approval";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { QueueDisplayItem } from "@/lib/operator/db/queries";
 import { isApprovalFinalized } from "@/lib/operator/db/view-models";
-import { approvalItems as mockApprovalItems } from "@/lib/operator/mock-data";
 
 type QueueTableProps = Readonly<{
-  items?: QueueDisplayItem[];
-  actorId?: string | null;
+  items: QueueDisplayItem[];
+  canApprove: boolean;
 }>;
 
-export function QueueTable({ items, actorId = null }: QueueTableProps) {
-  const queueItems = items ?? mockApprovalItems;
-
+export function QueueTable({ items, canApprove }: QueueTableProps) {
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-[color:var(--border)] px-5 py-4">
@@ -32,20 +29,21 @@ export function QueueTable({ items, actorId = null }: QueueTableProps) {
         </div>
       </div>
 
-      {queueItems.length === 0 ? (
+      {items.length === 0 ? (
         <div className="px-5 py-12">
           <p className="text-base font-semibold text-[color:var(--foreground)]">
             No live approval items yet
           </p>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-[color:var(--muted-foreground)]">
-            Run the seed script after setting `DATABASE_URL`, then the queue will
-            read from Postgres instead of the mock layer.
+            Once overdue invoices produce approval items in the active workspace,
+            they will appear here with live database state.
           </p>
         </div>
       ) : (
         <div className="divide-y divide-[color:var(--border)]">
-          {queueItems.map((item) => {
+          {items.map((item) => {
             const isLocked = isApprovalFinalized(item.status);
+            const disableActions = isLocked || !canApprove;
 
             return (
               <div
@@ -97,38 +95,37 @@ export function QueueTable({ items, actorId = null }: QueueTableProps) {
 
                 <div className="flex flex-col gap-3 lg:items-end">
                   <div className="flex w-full flex-col gap-2 lg:w-auto">
-                    {actorId ? (
-                      <form action={approveItem.bind(null, item.id, actorId)}>
-                        <Button
-                          className="w-full lg:w-auto"
-                          disabled={isLocked}
-                          type="submit"
-                        >
-                          Approve <ArrowRight className="size-4" />
-                        </Button>
-                      </form>
-                    ) : (
-                      <Button className="w-full lg:w-auto" disabled>
+                    <form action={sendApprovalPrompts.bind(null, item.id)}>
+                      <Button
+                        className="w-full lg:w-auto"
+                        disabled={isLocked}
+                        type="submit"
+                        variant="ghost"
+                      >
+                        Send approval links
+                      </Button>
+                    </form>
+
+                    <form action={approveItem.bind(null, item.id)}>
+                      <Button
+                        className="w-full lg:w-auto"
+                        disabled={disableActions}
+                        type="submit"
+                      >
                         Approve <ArrowRight className="size-4" />
                       </Button>
-                    )}
+                    </form>
 
-                    {actorId ? (
-                      <form action={rejectItem.bind(null, item.id, actorId)}>
-                        <Button
-                          className="w-full lg:w-auto"
-                          disabled={isLocked}
-                          type="submit"
-                          variant="secondary"
-                        >
-                          Reject
-                        </Button>
-                      </form>
-                    ) : (
-                      <Button className="w-full lg:w-auto" disabled variant="secondary">
+                    <form action={rejectItem.bind(null, item.id)}>
+                      <Button
+                        className="w-full lg:w-auto"
+                        disabled={disableActions}
+                        type="submit"
+                        variant="secondary"
+                      >
                         Reject
                       </Button>
-                    )}
+                    </form>
                   </div>
                 </div>
               </div>

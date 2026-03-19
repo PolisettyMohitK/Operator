@@ -1,14 +1,19 @@
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { format } from "date-fns";
 
 import { getDb } from "@/lib/operator/db/client";
 import {
   activityLogs,
   approvalItems,
+  channelStates,
   clients,
   invoices,
   memberships,
+  memoryProfiles,
+  onboardingCheckpoints,
   organizations,
+  sheetMappings,
+  toolConnections,
 } from "@/lib/operator/db/schema";
 import {
   formatActivityTimestamp,
@@ -68,6 +73,52 @@ export type ClientDisplayRow = {
   sentiment: string;
 };
 
+export type IntegrationDisplayRow = {
+  id: string;
+  name: string;
+  status: string;
+  detail: string;
+};
+
+export type TeamMemberDisplayRow = {
+  id: string;
+  name: string;
+  role: "owner" | "staff" | "approver";
+  canApprove: boolean;
+};
+
+export type ChannelStateDisplayRow = {
+  channel: "web" | "email" | "whatsapp";
+  state: string;
+  note: string;
+};
+
+export type SettingsDisplayState = {
+  toneGuidance: string;
+  channelStates: ChannelStateDisplayRow[];
+};
+
+export type OnboardingStepDisplayRow = {
+  id: string;
+  position: number;
+  label: string;
+};
+
+export type OnboardingDisplayState = {
+  steps: OnboardingStepDisplayRow[];
+  mappedColumns: Array<{
+    label: string;
+    value: string;
+  }>;
+  approverCount: number;
+  reminderPolicy: {
+    urgentAfterDays: number;
+    staleAfterDays: number;
+    minimumSpacingDays: number;
+  } | null;
+  connectedToolCount: number;
+};
+
 function titleCase(value: string) {
   return value
     .split(/[_\s-]+/)
@@ -80,7 +131,9 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return count === 1 ? singular : plural;
 }
 
-export async function listQueueItems(): Promise<QueueDisplayItem[]> {
+export async function listQueueItems(
+  organizationId: string,
+): Promise<QueueDisplayItem[]> {
   const db = getDb();
 
   if (!db) {
@@ -103,6 +156,7 @@ export async function listQueueItems(): Promise<QueueDisplayItem[]> {
     .from(approvalItems)
     .innerJoin(invoices, eq(approvalItems.invoiceId, invoices.id))
     .leftJoin(clients, eq(invoices.clientId, clients.id))
+    .where(eq(approvalItems.organizationId, organizationId))
     .orderBy(desc(approvalItems.createdAt));
 
   return rows.map((row) => ({
@@ -119,7 +173,9 @@ export async function listQueueItems(): Promise<QueueDisplayItem[]> {
   }));
 }
 
-export async function listInvoicesForPage(): Promise<InvoiceDisplayRow[]> {
+export async function listInvoicesForPage(
+  organizationId: string,
+): Promise<InvoiceDisplayRow[]> {
   const db = getDb();
 
   if (!db) {
@@ -141,6 +197,7 @@ export async function listInvoicesForPage(): Promise<InvoiceDisplayRow[]> {
     .from(invoices)
     .innerJoin(organizations, eq(invoices.organizationId, organizations.id))
     .leftJoin(clients, eq(invoices.clientId, clients.id))
+    .where(eq(invoices.organizationId, organizationId))
     .orderBy(desc(invoices.dueDate));
 
   if (invoiceRows.length === 0) {
@@ -154,12 +211,14 @@ export async function listInvoicesForPage(): Promise<InvoiceDisplayRow[]> {
       channel: approvalItems.channel,
     })
     .from(approvalItems)
-    .where(inArray(approvalItems.invoiceId, invoiceIds));
+    .where(
+      and(
+        eq(approvalItems.organizationId, organizationId),
+        inArray(approvalItems.invoiceId, invoiceIds),
+      ),
+    );
 
-  const channelsByInvoice = new Map<
-    string,
-    Array<"web" | "email" | "whatsapp">
-  >();
+  const channelsByInvoice = new Map<string, Array<"web" | "email" | "whatsapp">>();
 
   for (const row of channelRows) {
     const existing = channelsByInvoice.get(row.invoiceId) ?? [];
@@ -178,11 +237,13 @@ export async function listInvoicesForPage(): Promise<InvoiceDisplayRow[]> {
     owner: row.owner,
     lastFollowUpAt: row.lastFollowUpAt
       ? format(row.lastFollowUpAt, "MMM dd")
-      : "—",
+      : "-",
   }));
 }
 
-export async function listDashboardMetrics(): Promise<DashboardMetric[]> {
+export async function listDashboardMetrics(
+  organizationId: string,
+): Promise<DashboardMetric[]> {
   const db = getDb();
 
   const defaultMetrics: DashboardMetric[] = [
@@ -231,7 +292,8 @@ export async function listDashboardMetrics(): Promise<DashboardMetric[]> {
           Number,
         ),
     })
-    .from(invoices);
+    .from(invoices)
+    .where(eq(invoices.organizationId, organizationId));
 
   const [approvalStats] = await db
     .select({
@@ -256,7 +318,8 @@ export async function listDashboardMetrics(): Promise<DashboardMetric[]> {
           Number,
         ),
     })
-    .from(approvalItems);
+    .from(approvalItems)
+    .where(eq(approvalItems.organizationId, organizationId));
 
   const cashAtRisk = Number(invoiceStats?.cashAtRisk ?? 0);
   const overdueCount = invoiceStats?.overdueCount ?? 0;
@@ -301,6 +364,7 @@ export async function listDashboardMetrics(): Promise<DashboardMetric[]> {
 }
 
 export async function listActivityEvents(
+  organizationId: string,
   limit = 6,
 ): Promise<ActivityFeedItem[]> {
   const db = getDb();
@@ -318,6 +382,7 @@ export async function listActivityEvents(
       createdAt: activityLogs.createdAt,
     })
     .from(activityLogs)
+    .where(eq(activityLogs.organizationId, organizationId))
     .orderBy(desc(activityLogs.createdAt))
     .limit(limit);
 
@@ -338,6 +403,7 @@ export async function listActivityEvents(
 }
 
 export async function listClientsForPage(
+  organizationId: string,
   limit?: number,
 ): Promise<ClientDisplayRow[]> {
   const db = getDb();
@@ -356,6 +422,7 @@ export async function listClientsForPage(
       sentiment: clients.sentiment,
     })
     .from(clients)
+    .where(eq(clients.organizationId, organizationId))
     .orderBy(desc(clients.balance));
 
   const rows = limit ? await baseQuery.limit(limit) : await baseQuery;
@@ -375,30 +442,178 @@ export async function listClientsForPage(
   });
 }
 
-export async function resolveActorMembershipId(clerkUserId?: string | null) {
+export async function listToolConnections(
+  organizationId: string,
+): Promise<IntegrationDisplayRow[]> {
   const db = getDb();
 
   if (!db) {
-    return null;
+    return [];
   }
 
-  if (clerkUserId) {
-    const [membership] = await db
-      .select({ id: memberships.id })
-      .from(memberships)
-      .where(eq(memberships.clerkUserId, clerkUserId))
-      .limit(1);
+  const rows = await db
+    .select({
+      id: toolConnections.id,
+      name: toolConnections.provider,
+      status: toolConnections.status,
+      detail: toolConnections.detail,
+    })
+    .from(toolConnections)
+    .where(eq(toolConnections.organizationId, organizationId))
+    .orderBy(asc(toolConnections.provider));
 
-    if (membership) {
-      return membership.id;
-    }
+  return rows;
+}
+
+export async function listTeamMembers(
+  organizationId: string,
+): Promise<TeamMemberDisplayRow[]> {
+  const db = getDb();
+
+  if (!db) {
+    return [];
   }
 
-  const [fallbackMembership] = await db
-    .select({ id: memberships.id })
+  const rows = await db
+    .select({
+      id: memberships.id,
+      name: memberships.displayName,
+      role: memberships.role,
+      canApprove: memberships.canApprove,
+    })
     .from(memberships)
-    .where(inArray(memberships.role, ["owner", "approver"]))
-    .limit(1);
+    .where(eq(memberships.organizationId, organizationId))
+    .orderBy(asc(memberships.createdAt));
 
-  return fallbackMembership?.id ?? null;
+  return rows;
+}
+
+export async function getSettingsDisplayState(
+  organizationId: string,
+): Promise<SettingsDisplayState> {
+  const db = getDb();
+
+  if (!db) {
+    return {
+      toneGuidance: "",
+      channelStates: [],
+    };
+  }
+
+  const [[profile], channelRows] = await Promise.all([
+    db
+      .select({
+        communicationTone: memoryProfiles.communicationTone,
+      })
+      .from(memoryProfiles)
+      .where(eq(memoryProfiles.organizationId, organizationId))
+      .limit(1),
+    db
+      .select({
+        channel: channelStates.channel,
+        state: channelStates.state,
+        note: channelStates.note,
+      })
+      .from(channelStates)
+      .where(eq(channelStates.organizationId, organizationId))
+      .orderBy(asc(channelStates.channel)),
+  ]);
+
+  return {
+    toneGuidance: profile?.communicationTone ?? "",
+    channelStates: channelRows,
+  };
+}
+
+export async function getOnboardingDisplayState(
+  organizationId: string,
+): Promise<OnboardingDisplayState> {
+  const db = getDb();
+
+  if (!db) {
+    return {
+      steps: [],
+      mappedColumns: [],
+      approverCount: 0,
+      reminderPolicy: null,
+      connectedToolCount: 0,
+    };
+  }
+
+  const [[mappingRow], [memoryProfile], toolRows, stepRows, [approverStats]] =
+    await Promise.all([
+      db
+        .select({
+          mapping: sheetMappings.mapping,
+        })
+        .from(sheetMappings)
+        .where(eq(sheetMappings.organizationId, organizationId))
+        .orderBy(desc(sheetMappings.createdAt))
+        .limit(1),
+      db
+        .select({
+          reminderPolicy: memoryProfiles.reminderPolicy,
+        })
+        .from(memoryProfiles)
+        .where(eq(memoryProfiles.organizationId, organizationId))
+        .limit(1),
+      db
+        .select({
+          id: toolConnections.id,
+        })
+        .from(toolConnections)
+        .where(eq(toolConnections.organizationId, organizationId)),
+      db
+        .select({
+          id: onboardingCheckpoints.id,
+          position: onboardingCheckpoints.position,
+          label: onboardingCheckpoints.label,
+        })
+        .from(onboardingCheckpoints)
+        .where(eq(onboardingCheckpoints.organizationId, organizationId))
+        .orderBy(asc(onboardingCheckpoints.position)),
+      db
+        .select({
+          count: sql<number>`count(*)`.mapWith(Number),
+        })
+        .from(memberships)
+        .where(
+          and(
+            eq(memberships.organizationId, organizationId),
+            eq(memberships.canApprove, true),
+          ),
+        ),
+    ]);
+
+  const mapping = mappingRow?.mapping ?? {};
+
+  return {
+    steps: stepRows,
+    mappedColumns: [
+      {
+        label: "Invoice ID",
+        value:
+          typeof mapping.invoiceId === "string" ? mapping.invoiceId : "Not mapped yet",
+      },
+      {
+        label: "Client contact",
+        value:
+          typeof mapping.clientEmail === "string" || typeof mapping.clientPhone === "string"
+            ? [mapping.clientEmail, mapping.clientPhone].filter(Boolean).join(" + ")
+            : "Not mapped yet",
+      },
+      {
+        label: "Amount due",
+        value:
+          typeof mapping.amountDue === "string" ? mapping.amountDue : "Not mapped yet",
+      },
+      {
+        label: "Due date",
+        value: typeof mapping.dueDate === "string" ? mapping.dueDate : "Not mapped yet",
+      },
+    ],
+    approverCount: approverStats?.count ?? 0,
+    reminderPolicy: memoryProfile?.reminderPolicy ?? null,
+    connectedToolCount: toolRows.length,
+  };
 }

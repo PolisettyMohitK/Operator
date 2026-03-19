@@ -12,7 +12,7 @@ const buttonVariants = cva(
         primary:
           "bg-[color:var(--accent)] px-5 py-3 text-[color:var(--accent-foreground)] shadow-[0_18px_60px_-30px_rgba(24,59,78,0.8)] hover:-translate-y-0.5 hover:bg-[color:var(--accent-strong)]",
         secondary:
-          "border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-5 py-3 text-[color:var(--foreground)] hover:-translate-y-0.5 hover:border-[color:var(--accent)] hover:bg-white",
+          "border border-[color:var(--border-strong)] bg-[color:var(--surface)] px-5 py-3 text-[color:var(--foreground)] hover:-translate-y-0.5 hover:border-[color:var(--accent)] hover:bg-[color:var(--surface-elevated)]",
         ghost:
           "px-3 py-2 text-[color:var(--muted-foreground)] hover:bg-[color:var(--surface)] hover:text-[color:var(--foreground)]",
       },

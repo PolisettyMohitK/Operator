@@ -22,6 +22,7 @@ import {
   memoryProfiles,
   onboardingCheckpoints,
   organizations,
+  sheetMappings,
   toolConnections,
 } from "../src/lib/operator/db/schema";
 
@@ -70,6 +71,7 @@ async function seed() {
     .insert(organizations)
     .values({
       id: organizationId,
+      clerkOrganizationId: null,
       workspaceLabel: workspace.name,
       name: workspace.businessName,
       businessType: workspace.businessType,
@@ -80,6 +82,7 @@ async function seed() {
     .onConflictDoUpdate({
       target: organizations.id,
       set: {
+        clerkOrganizationId: null,
         workspaceLabel: workspace.name,
         name: workspace.businessName,
         businessType: workspace.businessType,
@@ -131,6 +134,42 @@ async function seed() {
         },
       });
   }
+
+  await db
+    .insert(sheetMappings)
+    .values({
+      id: `mapping_${organizationId}`,
+      organizationId,
+      spreadsheetId: "sheet_northline_ops",
+      worksheetName: "Invoices",
+      mapping: {
+        invoiceId: "Invoice Number",
+        clientName: "Client Name",
+        clientEmail: "Email",
+        clientPhone: "Phone",
+        amountDue: "Outstanding",
+        dueDate: "Due Date",
+        status: "State",
+        notes: "Notes",
+      },
+    })
+    .onConflictDoUpdate({
+      target: sheetMappings.id,
+      set: {
+        spreadsheetId: "sheet_northline_ops",
+        worksheetName: "Invoices",
+        mapping: {
+          invoiceId: "Invoice Number",
+          clientName: "Client Name",
+          clientEmail: "Email",
+          clientPhone: "Phone",
+          amountDue: "Outstanding",
+          dueDate: "Due Date",
+          status: "State",
+          notes: "Notes",
+        },
+      },
+    });
 
   for (const channelState of channelMatrix) {
     await db
