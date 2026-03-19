@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f6f1e8;
+  --foreground: #161616;
+  --surface: #fbf8f2;
+  --surface-muted: #efe6da;
+  --accent: #183b4e;
+  --accent-strong: #0f2a36;
+  --accent-foreground: #f8f2e9;
+  --warn: #a65a3a;
+  --border: rgba(24, 31, 35, 0.1);
+  --border-strong: rgba(24, 31, 35, 0.18);
+  --muted-foreground: #5f5a52;
+  --ring: rgba(24, 59, 78, 0.4);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body-sans);
+  --font-serif: var(--font-display-serif);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body-sans), sans-serif;
+  background-image:
+    radial-gradient(circle at top left, rgba(24, 59, 78, 0.08), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(166, 90, 58, 0.08), transparent 26%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(24, 59, 78, 0.18);
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.headline-balance {
+  text-wrap: balance;
+}
+
+.body-balance {
+  text-wrap: pretty;
+}
+
+.ambient-grid {
+  background-image:
+    linear-gradient(to right, rgba(24, 31, 35, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(24, 31, 35, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.section-fade {
+  animation: rise-in 0.8s ease both;
+}
+
+.section-fade-delay {
+  animation: rise-in 1.05s ease both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
