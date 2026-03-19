@@ -13,22 +13,20 @@ describe("approval action tokens", () => {
     const token = createApprovalActionToken(
       {
         action: "approve",
-        actorMembershipId: "membership_1",
         approvalItemId: "approval_1",
         channel: "email",
+        deliveryAttemptId: "delivery_1",
         expiresAt: "2030-03-19T12:00:00.000Z",
-        organizationId: "org_1",
       },
       secret,
     );
 
     expect(verifyApprovalActionToken(token, secret)).toEqual({
       action: "approve",
-      actorMembershipId: "membership_1",
       approvalItemId: "approval_1",
       channel: "email",
+      deliveryAttemptId: "delivery_1",
       expiresAt: "2030-03-19T12:00:00.000Z",
-      organizationId: "org_1",
     });
   });
 
@@ -36,11 +34,10 @@ describe("approval action tokens", () => {
     const token = createApprovalActionToken(
       {
         action: "reject",
-        actorMembershipId: "membership_1",
         approvalItemId: "approval_1",
         channel: "whatsapp",
+        deliveryAttemptId: "delivery_1",
         expiresAt: "2030-03-19T12:00:00.000Z",
-        organizationId: "org_1",
       },
       secret,
     );
@@ -54,11 +51,10 @@ describe("approval action tokens", () => {
     const token = createApprovalActionToken(
       {
         action: "approve",
-        actorMembershipId: "membership_1",
         approvalItemId: "approval_1",
         channel: "email",
+        deliveryAttemptId: "delivery_1",
         expiresAt: "2024-03-19T12:00:00.000Z",
-        organizationId: "org_1",
       },
       secret,
     );

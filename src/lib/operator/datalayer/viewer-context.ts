@@ -266,6 +266,7 @@ async function ensureMembershipRow(
   clerkUserId: string,
   displayName: string,
   requestedRole: TeamRole,
+  requestedCanApprove?: boolean,
 ) {
   const db = getDb();
 
@@ -275,7 +276,11 @@ async function ensureMembershipRow(
 
   const existing = await loadMembershipContext(organizationId, clerkUserId);
   const role = resolveMembershipRole(existing?.role ?? null, requestedRole);
-  const membershipId = existing?.membershipId ?? clampIdentifier("membership", `${organizationId}_${clerkUserId}`);
+  const canApprove =
+    requestedCanApprove === true || existing?.canApprove === true || role !== "staff";
+  const membershipId =
+    existing?.membershipId ??
+    clampIdentifier("membership", `${organizationId}_${clerkUserId}`);
 
   await db
     .insert(memberships)
@@ -285,14 +290,14 @@ async function ensureMembershipRow(
       clerkUserId,
       displayName,
       role,
-      canApprove: role !== "staff",
+      canApprove,
     })
     .onConflictDoUpdate({
       target: [memberships.organizationId, memberships.clerkUserId],
       set: {
         displayName,
         role,
-        canApprove: role !== "staff",
+        canApprove,
       },
     });
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getClerkWebhookSecret,
   getApprovalLinkSecret,
   getGmailAdapterConfig,
   getGoogleSheetsAdapterConfig,
@@ -49,7 +50,7 @@ describe("getApprovalLinkSecret", () => {
 });
 
 describe("provider adapter config helpers", () => {
-  it("returns Gmail config only when the workspace token is present", () => {
+  it("returns Gmail config only when the workspace token and sender are present", () => {
     expect(
       getGmailAdapterConfig({
         GOOGLE_WORKSPACE_ACCESS_TOKEN: "token",
@@ -61,6 +62,14 @@ describe("provider adapter config helpers", () => {
     });
 
     expect(getGmailAdapterConfig({})).toBeNull();
+  });
+
+  it("throws when Gmail is configured without an explicit sender", () => {
+    expect(() =>
+      getGmailAdapterConfig({
+        GOOGLE_WORKSPACE_ACCESS_TOKEN: "token",
+      }),
+    ).toThrow("OPERATOR_GMAIL_SENDER is required");
   });
 
   it("returns Sheets config when either an OAuth token or API key is present", () => {
@@ -108,5 +117,21 @@ describe("provider adapter config helpers", () => {
       baseUrl: "https://openclaw.example.com",
       draftPath: "/api/operator/draft-recommendations",
     });
+  });
+});
+
+describe("getClerkWebhookSecret", () => {
+  it("returns the configured webhook secret", () => {
+    expect(
+      getClerkWebhookSecret({
+        CLERK_WEBHOOK_SECRET: " whsec_123 ",
+      }),
+    ).toBe("whsec_123");
+  });
+
+  it("throws when the webhook secret is missing", () => {
+    expect(() => getClerkWebhookSecret({})).toThrow(
+      "CLERK_WEBHOOK_SECRET is required",
+    );
   });
 });

@@ -48,6 +48,7 @@ type ApprovalPromptTarget = Readonly<{
 
 type ApprovalPromptDispatchAttempt = Readonly<{
   channel: ApprovalLinkChannel;
+  deliveryAttemptId: string;
   membershipId: string;
   providerMessageId: string | null;
   recipient: string | null;
@@ -121,11 +122,10 @@ async function resolveMembershipContacts(clerkUserId: string) {
 }
 
 function buildActionUrls(input: {
-  actorMembershipId: string;
   approvalItemId: string;
   appUrl: string;
   channel: ApprovalLinkChannel;
-  organizationId: string;
+  deliveryAttemptId: string;
   secret: string;
 }) {
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString();
@@ -136,11 +136,10 @@ function buildActionUrls(input: {
       token: createApprovalActionToken(
         {
           action: "approve",
-          actorMembershipId: input.actorMembershipId,
           approvalItemId: input.approvalItemId,
           channel: input.channel,
+          deliveryAttemptId: input.deliveryAttemptId,
           expiresAt,
-          organizationId: input.organizationId,
         },
         input.secret,
       ),
@@ -150,11 +149,10 @@ function buildActionUrls(input: {
       token: createApprovalActionToken(
         {
           action: "reject",
-          actorMembershipId: input.actorMembershipId,
           approvalItemId: input.approvalItemId,
           channel: input.channel,
+          deliveryAttemptId: input.deliveryAttemptId,
           expiresAt,
-          organizationId: input.organizationId,
         },
         input.secret,
       ),
@@ -163,9 +161,11 @@ function buildActionUrls(input: {
 }
 
 async function persistPromptAttempt(input: {
+  id: string;
   approvalItemId: string;
   channel: ApprovalLinkChannel;
   membershipId: string;
+  organizationId: string;
   providerMessageId: string | null;
   recipient: string | null;
   state: "prompt_sent" | "prompt_failed" | "skipped";
@@ -177,13 +177,14 @@ async function persistPromptAttempt(input: {
   }
 
   await db.insert(deliveryAttempts).values({
-    id: buildRecordId("delivery", `${input.approvalItemId}_${input.channel}`),
+    id: input.id,
     approvalItemId: input.approvalItemId,
     channel: input.channel,
     state: input.state,
     providerReference: input.providerMessageId,
     responseMetadata: {
       membershipId: input.membershipId,
+      organizationId: input.organizationId,
       recipient: input.recipient,
       purpose: "approval_prompt",
     },
@@ -286,12 +287,15 @@ export async function dispatchApprovalPrompts(
     const contacts = await resolveMembershipContacts(approver.clerkUserId);
 
     if (gmailAdapter) {
+      const emailDeliveryAttemptId = buildRecordId(
+        "delivery",
+        `${approvalItem.id}_email_${approver.id}`,
+      );
       const emailUrls = buildActionUrls({
-        actorMembershipId: approver.id,
         approvalItemId: approvalItem.id,
         appUrl,
         channel: "email",
-        organizationId: input.organizationId,
+        deliveryAttemptId: emailDeliveryAttemptId,
         secret,
       });
       const promptCopy = buildApprovalPromptCopy({
@@ -315,6 +319,7 @@ export async function dispatchApprovalPrompts(
 
           const attempt = {
             channel: "email" as const,
+            deliveryAttemptId: emailDeliveryAttemptId,
             membershipId: approver.id,
             providerMessageId: sentMessage.providerMessageId,
             recipient: contacts.email,
@@ -323,11 +328,18 @@ export async function dispatchApprovalPrompts(
           attempts.push(attempt);
           await persistPromptAttempt({
             approvalItemId: approvalItem.id,
-            ...attempt,
+            channel: attempt.channel,
+            id: attempt.deliveryAttemptId,
+            membershipId: attempt.membershipId,
+            organizationId: input.organizationId,
+            providerMessageId: attempt.providerMessageId,
+            recipient: attempt.recipient,
+            state: attempt.state,
           });
         } catch {
           const attempt = {
             channel: "email" as const,
+            deliveryAttemptId: emailDeliveryAttemptId,
             membershipId: approver.id,
             providerMessageId: null,
             recipient: contacts.email,
@@ -336,12 +348,19 @@ export async function dispatchApprovalPrompts(
           attempts.push(attempt);
           await persistPromptAttempt({
             approvalItemId: approvalItem.id,
-            ...attempt,
+            channel: attempt.channel,
+            id: attempt.deliveryAttemptId,
+            membershipId: attempt.membershipId,
+            organizationId: input.organizationId,
+            providerMessageId: attempt.providerMessageId,
+            recipient: attempt.recipient,
+            state: attempt.state,
           });
         }
       } else {
         const attempt = {
           channel: "email" as const,
+          deliveryAttemptId: emailDeliveryAttemptId,
           membershipId: approver.id,
           providerMessageId: null,
           recipient: null,
@@ -350,18 +369,27 @@ export async function dispatchApprovalPrompts(
         attempts.push(attempt);
         await persistPromptAttempt({
           approvalItemId: approvalItem.id,
-          ...attempt,
+          channel: attempt.channel,
+          id: attempt.deliveryAttemptId,
+          membershipId: attempt.membershipId,
+          organizationId: input.organizationId,
+          providerMessageId: attempt.providerMessageId,
+          recipient: attempt.recipient,
+          state: attempt.state,
         });
       }
     }
 
     if (whatsAppAdapter) {
+      const whatsAppDeliveryAttemptId = buildRecordId(
+        "delivery",
+        `${approvalItem.id}_whatsapp_${approver.id}`,
+      );
       const whatsAppUrls = buildActionUrls({
-        actorMembershipId: approver.id,
         approvalItemId: approvalItem.id,
         appUrl,
         channel: "whatsapp",
-        organizationId: input.organizationId,
+        deliveryAttemptId: whatsAppDeliveryAttemptId,
         secret,
       });
       const promptCopy = buildApprovalPromptCopy({
@@ -385,6 +413,7 @@ export async function dispatchApprovalPrompts(
 
           const attempt = {
             channel: "whatsapp" as const,
+            deliveryAttemptId: whatsAppDeliveryAttemptId,
             membershipId: approver.id,
             providerMessageId: sentMessage.providerMessageId,
             recipient: contacts.phone,
@@ -393,11 +422,18 @@ export async function dispatchApprovalPrompts(
           attempts.push(attempt);
           await persistPromptAttempt({
             approvalItemId: approvalItem.id,
-            ...attempt,
+            channel: attempt.channel,
+            id: attempt.deliveryAttemptId,
+            membershipId: attempt.membershipId,
+            organizationId: input.organizationId,
+            providerMessageId: attempt.providerMessageId,
+            recipient: attempt.recipient,
+            state: attempt.state,
           });
         } catch {
           const attempt = {
             channel: "whatsapp" as const,
+            deliveryAttemptId: whatsAppDeliveryAttemptId,
             membershipId: approver.id,
             providerMessageId: null,
             recipient: contacts.phone,
@@ -406,12 +442,19 @@ export async function dispatchApprovalPrompts(
           attempts.push(attempt);
           await persistPromptAttempt({
             approvalItemId: approvalItem.id,
-            ...attempt,
+            channel: attempt.channel,
+            id: attempt.deliveryAttemptId,
+            membershipId: attempt.membershipId,
+            organizationId: input.organizationId,
+            providerMessageId: attempt.providerMessageId,
+            recipient: attempt.recipient,
+            state: attempt.state,
           });
         }
       } else {
         const attempt = {
           channel: "whatsapp" as const,
+          deliveryAttemptId: whatsAppDeliveryAttemptId,
           membershipId: approver.id,
           providerMessageId: null,
           recipient: null,
@@ -420,7 +463,13 @@ export async function dispatchApprovalPrompts(
         attempts.push(attempt);
         await persistPromptAttempt({
           approvalItemId: approvalItem.id,
-          ...attempt,
+          channel: attempt.channel,
+          id: attempt.deliveryAttemptId,
+          membershipId: attempt.membershipId,
+          organizationId: input.organizationId,
+          providerMessageId: attempt.providerMessageId,
+          recipient: attempt.recipient,
+          state: attempt.state,
         });
       }
     }

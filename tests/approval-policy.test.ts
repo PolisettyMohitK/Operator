@@ -19,6 +19,13 @@ const staff: TeamMember = {
   role: "staff",
 };
 
+const delegatedApprover: TeamMember = {
+  id: "staff_2",
+  name: "Ishaan",
+  role: "staff",
+  canApprove: true,
+};
+
 const approver: TeamMember = {
   id: "approver_1",
   name: "Rhea",
@@ -36,6 +43,7 @@ describe("canApproveOutboundMessage", () => {
   it("allows owners and approvers to approve outbound messages", () => {
     expect(canApproveOutboundMessage(owner)).toBe(true);
     expect(canApproveOutboundMessage(approver)).toBe(true);
+    expect(canApproveOutboundMessage(delegatedApprover)).toBe(true);
   });
 
   it("prevents regular staff from approving outbound messages", () => {
@@ -62,5 +70,12 @@ describe("advanceApprovalItem", () => {
     expect(() => advanceApprovalItem(pendingItem, staff, "approve")).toThrow(
       "not allowed",
     );
+  });
+
+  it("allows delegated staff approvers to approve when canApprove is set", () => {
+    const next = advanceApprovalItem(pendingItem, delegatedApprover, "approve");
+
+    expect(next.status).toBe("approved");
+    expect(next.approvedBy).toBe("staff_2");
   });
 });

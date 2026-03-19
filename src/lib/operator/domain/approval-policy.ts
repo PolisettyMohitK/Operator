@@ -13,6 +13,7 @@ export type TeamMember = Readonly<{
   id: string;
   name: string;
   role: TeamRole;
+  canApprove?: boolean;
 }>;
 
 export type ApprovalItem = Readonly<{
@@ -25,7 +26,11 @@ export type ApprovalItem = Readonly<{
 }>;
 
 export function canApproveOutboundMessage(member: TeamMember) {
-  return member.role === "owner" || member.role === "approver";
+  return (
+    member.role === "owner" ||
+    member.role === "approver" ||
+    member.canApprove === true
+  );
 }
 
 export function advanceApprovalItem(

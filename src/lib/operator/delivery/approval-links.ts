@@ -5,11 +5,10 @@ export type ApprovalLinkChannel = "email" | "whatsapp";
 
 export type ApprovalActionTokenPayload = Readonly<{
   action: ApprovalLinkAction;
-  actorMembershipId: string;
   approvalItemId: string;
   channel: ApprovalLinkChannel;
+  deliveryAttemptId: string;
   expiresAt: string;
-  organizationId: string;
 }>;
 
 function encodePayload(payload: ApprovalActionTokenPayload) {
@@ -50,9 +49,8 @@ function assertTokenPayload(
   }
 
   if (
-    !payload.actorMembershipId ||
     !payload.approvalItemId ||
-    !payload.organizationId ||
+    !payload.deliveryAttemptId ||
     !payload.expiresAt
   ) {
     throw new Error("Approval link payload is incomplete.");

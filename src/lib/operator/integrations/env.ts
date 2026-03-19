@@ -2,7 +2,7 @@ type IntegrationEnv = Readonly<Record<string, string | undefined>>;
 
 export type GmailAdapterConfig = Readonly<{
   accessToken: string;
-  senderEmail: string | null;
+  senderEmail: string;
 }>;
 
 export type GoogleSheetsAdapterConfig = Readonly<{
@@ -63,6 +63,18 @@ export function getApprovalLinkSecret(env: IntegrationEnv) {
   );
 }
 
+export function getClerkWebhookSecret(env: IntegrationEnv) {
+  const webhookSecret = readEnvValue(env.CLERK_WEBHOOK_SECRET);
+
+  if (!webhookSecret) {
+    throw new Error(
+      "CLERK_WEBHOOK_SECRET is required to verify Clerk webhook signatures.",
+    );
+  }
+
+  return webhookSecret;
+}
+
 export function getGmailAdapterConfig(
   env: IntegrationEnv,
 ): GmailAdapterConfig | null {
@@ -72,9 +84,17 @@ export function getGmailAdapterConfig(
     return null;
   }
 
+  const senderEmail = readEnvValue(env.OPERATOR_GMAIL_SENDER);
+
+  if (!senderEmail) {
+    throw new Error(
+      "OPERATOR_GMAIL_SENDER is required when GOOGLE_WORKSPACE_ACCESS_TOKEN is configured.",
+    );
+  }
+
   return {
     accessToken,
-    senderEmail: readEnvValue(env.OPERATOR_GMAIL_SENDER),
+    senderEmail,
   };
 }
 
