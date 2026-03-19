@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { UserButton } from "@clerk/nextjs";
 import {
   Activity,
   BellRing,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { workspace } from "@/lib/operator/mock-data";
+import { hasClerkPublishableKey } from "@/lib/auth/clerk";
 import { cn } from "@/lib/utils";
 
 const appNavigation = [
@@ -38,6 +40,8 @@ export function AppShell({
   title,
   description,
 }: AppShellProps) {
+  const showUserButton = hasClerkPublishableKey(process.env);
+
   return (
     <div className="min-h-screen bg-[color:var(--surface-muted)]">
       <div className="mx-auto flex w-full max-w-[1600px] gap-5 px-3 py-3 sm:px-5 lg:px-6">
@@ -98,6 +102,11 @@ export function AppShell({
               >
                 View self-serve onboarding
               </Link>
+              {showUserButton ? (
+                <div className="flex justify-end">
+                  <UserButton />
+                </div>
+              ) : null}
             </div>
           </header>
 

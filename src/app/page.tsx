@@ -41,7 +41,9 @@ export default function Home() {
                 </Link>
               </Button>
               <Button asChild size="lg" variant="secondary">
-                <Link href="/app">See the Console</Link>
+                <Link href="/app" prefetch={false}>
+                  See the Console
+                </Link>
               </Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">

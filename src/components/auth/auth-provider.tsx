@@ -12,5 +12,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return <>{children}</>;
   }
 
-  return <ClerkProvider>{children}</ClerkProvider>;
+  return (
+    <ClerkProvider
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/app"
+      signUpFallbackRedirectUrl="/app"
+    >
+      {children}
+    </ClerkProvider>
+  );
 }
