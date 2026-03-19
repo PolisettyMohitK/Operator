@@ -1,6 +1,8 @@
 import { AppShell } from "@/components/app/app-shell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { setMemberApprovalDelegation } from "@/app/actions/workspace-admin";
 import { requireViewerContext } from "@/lib/operator/datalayer/viewer-context";
 import { listTeamMembers } from "@/lib/operator/db/queries";
 
@@ -9,6 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function TeamPage() {
   const viewerContext = await requireViewerContext();
   const teamMembers = await listTeamMembers(viewerContext.organizationId);
+  const isOwner = viewerContext.role === "owner";
 
   return (
     <AppShell
@@ -34,7 +37,7 @@ export default async function TeamPage() {
               {teamMembers.map((member) => (
                 <div
                   key={member.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4"
+                  className="flex flex-wrap items-center justify-between gap-4 rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4"
                 >
                   <div>
                     <p className="text-base font-semibold text-[color:var(--foreground)]">
@@ -44,9 +47,38 @@ export default async function TeamPage() {
                       {member.id}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {member.canApprove ? <Badge>Can approve</Badge> : null}
-                    <Badge>{member.role}</Badge>
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {member.canApprove ? (
+                        <Badge>
+                          {member.role === "staff"
+                            ? "Delegated approver"
+                            : "Can approve"}
+                        </Badge>
+                      ) : null}
+                      <Badge>{member.role}</Badge>
+                    </div>
+                    {isOwner && member.role === "staff" ? (
+                      <form
+                        action={setMemberApprovalDelegation.bind(
+                          null,
+                          member.id,
+                          !member.canApprove,
+                        )}
+                      >
+                        <Button size="sm" type="submit" variant="secondary">
+                          {member.canApprove
+                            ? "Remove approval access"
+                            : "Delegate approvals"}
+                        </Button>
+                      </form>
+                    ) : (
+                      <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted-foreground)]">
+                        {member.role === "owner"
+                          ? "Owner authority"
+                          : "Role managed"}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -67,6 +99,11 @@ export default async function TeamPage() {
             <p>
               Approvers can review and approve outbound messages, including
               cross-channel actions from email and WhatsApp.
+            </p>
+            <p>
+              {isOwner
+                ? "This workspace is owner-managed. You can delegate or revoke approval authority for staff accounts directly from the role list."
+                : "Only workspace owners can delegate or revoke approval authority. This page remains visible so the approval chain stays auditable."}
             </p>
           </div>
         </Card>

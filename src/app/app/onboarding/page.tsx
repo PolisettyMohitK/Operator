@@ -1,6 +1,9 @@
 import { AppShell } from "@/components/app/app-shell";
+import { saveReminderCadence } from "@/app/actions/workspace-admin";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DEFAULT_REMINDER_POLICY } from "@/lib/operator/datalayer/workspace-admin";
 import { requireViewerContext } from "@/lib/operator/datalayer/viewer-context";
 import { getOnboardingDisplayState } from "@/lib/operator/db/queries";
 
@@ -9,6 +12,8 @@ export const dynamic = "force-dynamic";
 export default async function OnboardingPage() {
   const viewerContext = await requireViewerContext();
   const onboarding = await getOnboardingDisplayState(viewerContext.organizationId);
+  const isOwner = viewerContext.role === "owner";
+  const reminderPolicy = onboarding.reminderPolicy ?? DEFAULT_REMINDER_POLICY;
 
   return (
     <AppShell
@@ -76,6 +81,78 @@ export default async function OnboardingPage() {
                 : "Reminder cadence has not been saved yet. Once a policy and approvers are configured, Operator will activate sync with the workspace rules shown here."}
             </p>
           </div>
+
+          <form action={saveReminderCadence}>
+            <div className="mt-8 rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="eyebrow">Reminder cadence</p>
+                  <h3 className="mt-2 text-xl font-semibold text-[color:var(--foreground)]">
+                    Urgent, stale, and spacing thresholds
+                  </h3>
+                </div>
+                <p className="text-xs uppercase tracking-[0.22em] text-[color:var(--muted-foreground)]">
+                  {isOwner ? "Owner editable" : "Read only"}
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <label className="grid gap-2">
+                  <span className="text-sm font-semibold text-[color:var(--foreground)]">
+                    Urgent after
+                  </span>
+                  <input
+                    className="rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--ring)] disabled:cursor-not-allowed disabled:opacity-70"
+                    defaultValue={reminderPolicy.urgentAfterDays}
+                    disabled={!isOwner}
+                    min={1}
+                    name="urgentAfterDays"
+                    required
+                    type="number"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-semibold text-[color:var(--foreground)]">
+                    Stale after
+                  </span>
+                  <input
+                    className="rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--ring)] disabled:cursor-not-allowed disabled:opacity-70"
+                    defaultValue={reminderPolicy.staleAfterDays}
+                    disabled={!isOwner}
+                    min={1}
+                    name="staleAfterDays"
+                    required
+                    type="number"
+                  />
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-semibold text-[color:var(--foreground)]">
+                    Minimum spacing
+                  </span>
+                  <input
+                    className="rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--ring)] disabled:cursor-not-allowed disabled:opacity-70"
+                    defaultValue={reminderPolicy.minimumSpacingDays}
+                    disabled={!isOwner}
+                    min={1}
+                    name="minimumSpacingDays"
+                    required
+                    type="number"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--border)] pt-5">
+                <p className="max-w-2xl text-sm leading-7 text-[color:var(--muted-foreground)]">
+                  {isOwner
+                    ? `There are currently ${onboarding.approverCount} active approver account${onboarding.approverCount === 1 ? "" : "s"} in this workspace. Saving cadence here changes when invoices escalate into urgent and stale lanes.`
+                    : "Reminder cadence is visible to the whole team, but only workspace owners can change it."}
+                </p>
+                <Button disabled={!isOwner} type="submit">
+                  Save cadence
+                </Button>
+              </div>
+            </div>
+          </form>
         </Card>
       </div>
     </AppShell>
