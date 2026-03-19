@@ -1,8 +1,10 @@
 import { AppShell } from "@/components/app/app-shell";
 import { Card } from "@/components/ui/card";
-import { invoices } from "@/lib/operator/mock-data";
+import { listInvoicesForPage } from "@/lib/operator/db/queries";
 
-export default function InvoicesPage() {
+export default async function InvoicesPage() {
+  const invoices = await listInvoicesForPage();
+
   return (
     <AppShell
       activeHref="/app/invoices"
@@ -18,32 +20,44 @@ export default function InvoicesPage() {
           <span>Status</span>
           <span>Channel</span>
         </div>
-        <div className="divide-y divide-[color:var(--border)]">
-          {invoices.map((invoice) => (
-            <div
-              key={invoice.invoiceId}
-              className="grid grid-cols-[1.1fr_repeat(5,minmax(0,1fr))] px-5 py-5 text-sm"
-            >
-              <div>
-                <p className="font-semibold text-[color:var(--foreground)]">
-                  {invoice.clientName}
-                </p>
-                <p className="mt-1 text-[color:var(--muted-foreground)]">
-                  Owner: {invoice.owner}
-                </p>
+        {invoices.length === 0 ? (
+          <div className="px-5 py-12">
+            <p className="text-base font-semibold text-[color:var(--foreground)]">
+              No invoice rows are stored yet
+            </p>
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-[color:var(--muted-foreground)]">
+              Set `DATABASE_URL`, run the migrations, and seed the database to
+              replace the invoice mock data with live Postgres reads.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-[color:var(--border)]">
+            {invoices.map((invoice) => (
+              <div
+                key={invoice.id}
+                className="grid grid-cols-[1.1fr_repeat(5,minmax(0,1fr))] px-5 py-5 text-sm"
+              >
+                <div>
+                  <p className="font-semibold text-[color:var(--foreground)]">
+                    {invoice.clientName}
+                  </p>
+                  <p className="mt-1 text-[color:var(--muted-foreground)]">
+                    Owner: {invoice.owner}
+                  </p>
+                </div>
+                <span className="text-[color:var(--foreground)]">{invoice.invoiceId}</span>
+                <span className="text-[color:var(--foreground)]">{invoice.dueDate}</span>
+                <span className="text-[color:var(--foreground)]">
+                  ${invoice.amountDue.toLocaleString()}
+                </span>
+                <span className="text-[color:var(--accent)]">{invoice.status}</span>
+                <span className="text-[color:var(--muted-foreground)]">
+                  {invoice.channel}
+                </span>
               </div>
-              <span className="text-[color:var(--foreground)]">{invoice.invoiceId}</span>
-              <span className="text-[color:var(--foreground)]">{invoice.dueDate}</span>
-              <span className="text-[color:var(--foreground)]">
-                ${invoice.amountDue.toLocaleString()}
-              </span>
-              <span className="text-[color:var(--accent)]">{invoice.status}</span>
-              <span className="text-[color:var(--muted-foreground)]">
-                {invoice.channel}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
     </AppShell>
   );
