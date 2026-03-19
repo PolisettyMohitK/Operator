@@ -1,8 +1,9 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { format } from "date-fns";
 
 import { getDb } from "@/lib/operator/db/client";
 import {
+  activityLogs,
   approvalItems,
   clients,
   invoices,
@@ -10,6 +11,9 @@ import {
   organizations,
 } from "@/lib/operator/db/schema";
 import {
+  formatActivityTimestamp,
+  formatCompactUsdAmount,
+  formatMetricCount,
   formatQueueChannelLabel,
   summarizeInvoiceChannels,
 } from "@/lib/operator/db/view-models";
@@ -39,12 +43,41 @@ export type InvoiceDisplayRow = {
   lastFollowUpAt: string;
 };
 
+export type DashboardMetric = {
+  label: string;
+  value: string;
+  detail: string;
+  trend: string;
+};
+
+export type ActivityFeedItem = {
+  id: string;
+  title: string;
+  detail: string;
+  timestamp: string;
+  channel: string;
+};
+
+export type ClientDisplayRow = {
+  id: string;
+  name: string;
+  contact: string;
+  lastTouchpoint: string;
+  balanceAmount: number;
+  balanceFormatted: string;
+  sentiment: string;
+};
+
 function titleCase(value: string) {
   return value
     .split(/[_\s-]+/)
     .filter(Boolean)
     .map((part) => part[0]!.toUpperCase() + part.slice(1).toLowerCase())
     .join(" ");
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return count === 1 ? singular : plural;
 }
 
 export async function listQueueItems(): Promise<QueueDisplayItem[]> {
@@ -147,6 +180,199 @@ export async function listInvoicesForPage(): Promise<InvoiceDisplayRow[]> {
       ? format(row.lastFollowUpAt, "MMM dd")
       : "—",
   }));
+}
+
+export async function listDashboardMetrics(): Promise<DashboardMetric[]> {
+  const db = getDb();
+
+  const defaultMetrics: DashboardMetric[] = [
+    {
+      label: "Cash at risk",
+      value: "$0",
+      detail: "Across 0 active overdue invoices",
+      trend: "0 urgent approvals currently open",
+    },
+    {
+      label: "Pending approvals",
+      value: "00",
+      detail: "0 urgent, 0 edited by humans",
+      trend: "0 outbound channels currently in play",
+    },
+    {
+      label: "Auto-prepared drafts",
+      value: "00",
+      detail: "Generated from live approval records in the last 24 hours",
+      trend: "0 required manual edits",
+    },
+    {
+      label: "Recovered this month",
+      value: "$0",
+      detail: "Across 0 settled invoices",
+      trend: "No recovered invoices yet this month",
+    },
+  ];
+
+  if (!db) {
+    return defaultMetrics;
+  }
+
+  const [invoiceStats] = await db
+    .select({
+      cashAtRisk:
+        sql<string>`coalesce(sum(case when ${invoices.status} = 'overdue' then ${invoices.amountDue} else 0 end), 0)`,
+      overdueCount:
+        sql<number>`count(case when ${invoices.status} = 'overdue' then 1 end)`.mapWith(
+          Number,
+        ),
+      recoveredAmount:
+        sql<string>`coalesce(sum(case when ${invoices.status} in ('paid', 'recovered') then ${invoices.amountDue} else 0 end), 0)`,
+      recoveredCount:
+        sql<number>`count(case when ${invoices.status} in ('paid', 'recovered') then 1 end)`.mapWith(
+          Number,
+        ),
+    })
+    .from(invoices);
+
+  const [approvalStats] = await db
+    .select({
+      pendingCount:
+        sql<number>`count(case when ${approvalItems.status} in ('pending', 'edited') then 1 end)`.mapWith(
+          Number,
+        ),
+      urgentCount:
+        sql<number>`count(case when ${approvalItems.status} in ('pending', 'edited') and ${approvalItems.riskLevel} = 'urgent' then 1 end)`.mapWith(
+          Number,
+        ),
+      editedCount:
+        sql<number>`count(case when ${approvalItems.status} = 'edited' then 1 end)`.mapWith(
+          Number,
+        ),
+      last24hDraftCount:
+        sql<number>`count(case when ${approvalItems.createdAt} >= now() - interval '24 hours' then 1 end)`.mapWith(
+          Number,
+        ),
+      activeChannelCount:
+        sql<number>`count(distinct case when ${approvalItems.status} in ('pending', 'edited') then ${approvalItems.channel} end)`.mapWith(
+          Number,
+        ),
+    })
+    .from(approvalItems);
+
+  const cashAtRisk = Number(invoiceStats?.cashAtRisk ?? 0);
+  const overdueCount = invoiceStats?.overdueCount ?? 0;
+  const recoveredAmount = Number(invoiceStats?.recoveredAmount ?? 0);
+  const recoveredCount = invoiceStats?.recoveredCount ?? 0;
+
+  const pendingCount = approvalStats?.pendingCount ?? 0;
+  const urgentCount = approvalStats?.urgentCount ?? 0;
+  const editedCount = approvalStats?.editedCount ?? 0;
+  const last24hDraftCount = approvalStats?.last24hDraftCount ?? 0;
+  const activeChannelCount = approvalStats?.activeChannelCount ?? 0;
+
+  return [
+    {
+      label: "Cash at risk",
+      value: formatCompactUsdAmount(cashAtRisk),
+      detail: `Across ${overdueCount} active overdue ${pluralize(overdueCount, "invoice")}`,
+      trend: `${urgentCount} urgent ${pluralize(urgentCount, "approval")} currently open`,
+    },
+    {
+      label: "Pending approvals",
+      value: formatMetricCount(pendingCount),
+      detail: `${urgentCount} urgent, ${editedCount} edited by humans`,
+      trend: `${activeChannelCount} outbound ${pluralize(activeChannelCount, "channel")} currently in play`,
+    },
+    {
+      label: "Auto-prepared drafts",
+      value: formatMetricCount(last24hDraftCount),
+      detail: "Generated from live approval records in the last 24 hours",
+      trend: `${editedCount} required manual edits`,
+    },
+    {
+      label: "Recovered this month",
+      value: formatCompactUsdAmount(recoveredAmount),
+      detail: `Across ${recoveredCount} settled ${pluralize(recoveredCount, "invoice")}`,
+      trend:
+        recoveredCount > 0
+          ? "Based on invoices marked paid or recovered"
+          : "No recovered invoices yet this month",
+    },
+  ];
+}
+
+export async function listActivityEvents(
+  limit = 6,
+): Promise<ActivityFeedItem[]> {
+  const db = getDb();
+
+  if (!db) {
+    return [];
+  }
+
+  const rows = await db
+    .select({
+      id: activityLogs.id,
+      title: activityLogs.title,
+      detail: activityLogs.message,
+      metadata: activityLogs.metadata,
+      createdAt: activityLogs.createdAt,
+    })
+    .from(activityLogs)
+    .orderBy(desc(activityLogs.createdAt))
+    .limit(limit);
+
+  return rows.map((row) => {
+    const channel =
+      typeof row.metadata.channel === "string" ? row.metadata.channel : "Web";
+    const timeLabel =
+      typeof row.metadata.timeLabel === "string" ? row.metadata.timeLabel : undefined;
+
+    return {
+      id: row.id,
+      title: row.title,
+      detail: row.detail,
+      channel,
+      timestamp: formatActivityTimestamp(row.createdAt, timeLabel),
+    };
+  });
+}
+
+export async function listClientsForPage(
+  limit?: number,
+): Promise<ClientDisplayRow[]> {
+  const db = getDb();
+
+  if (!db) {
+    return [];
+  }
+
+  const baseQuery = db
+    .select({
+      id: clients.id,
+      name: clients.name,
+      contact: clients.contactName,
+      lastTouchpoint: clients.lastTouchpoint,
+      balance: clients.balance,
+      sentiment: clients.sentiment,
+    })
+    .from(clients)
+    .orderBy(desc(clients.balance));
+
+  const rows = limit ? await baseQuery.limit(limit) : await baseQuery;
+
+  return rows.map((row) => {
+    const balanceAmount = Number(row.balance);
+
+    return {
+      id: row.id,
+      name: row.name,
+      contact: row.contact,
+      lastTouchpoint: row.lastTouchpoint,
+      balanceAmount,
+      balanceFormatted: `$${balanceAmount.toLocaleString()}`,
+      sentiment: row.sentiment,
+    };
+  });
 }
 
 export async function resolveActorMembershipId(clerkUserId?: string | null) {

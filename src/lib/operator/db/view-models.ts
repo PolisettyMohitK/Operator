@@ -40,3 +40,23 @@ export function summarizeInvoiceChannels(
 export function isApprovalFinalized(status: ApprovalStatus) {
   return ["approved", "rejected", "sent", "failed", "stale"].includes(status);
 }
+
+export function formatCompactUsdAmount(amount: number) {
+  if (amount >= 1000) {
+    return `$${(amount / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+  }
+
+  return `$${amount.toLocaleString()}`;
+}
+
+export function formatMetricCount(count: number) {
+  return count.toString().padStart(2, "0");
+}
+
+export function formatActivityTimestamp(createdAt: Date, displayLabel?: string) {
+  if (displayLabel?.trim()) {
+    return displayLabel;
+  }
+
+  return createdAt.toISOString().slice(11, 16);
+}

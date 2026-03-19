@@ -2,6 +2,8 @@ import { AppShell } from "@/components/app/app-shell";
 import { Card } from "@/components/ui/card";
 import { listInvoicesForPage } from "@/lib/operator/db/queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function InvoicesPage() {
   const invoices = await listInvoicesForPage();
 

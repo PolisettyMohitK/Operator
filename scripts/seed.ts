@@ -5,10 +5,9 @@ import {
   approvalItems as mockApprovalItems,
   channelMatrix,
   clients as mockClients,
-  integrations,
   invoices as mockInvoices,
+  integrations,
   onboardingSteps,
-  queueMetrics,
   teamMembers,
   workspace,
 } from "../src/lib/operator/mock-data";
@@ -18,7 +17,6 @@ import {
   approvalItems,
   channelStates,
   clients,
-  dashboardMetrics,
   invoices,
   memberships,
   memoryProfiles,
@@ -115,28 +113,6 @@ async function seed() {
         },
       },
     });
-
-  for (const [index, metric] of queueMetrics.entries()) {
-    await db
-      .insert(dashboardMetrics)
-      .values({
-        id: `metric_${index + 1}`,
-        organizationId,
-        label: metric.label,
-        value: metric.value,
-        detail: metric.detail,
-        trend: metric.trend,
-      })
-      .onConflictDoUpdate({
-        target: dashboardMetrics.id,
-        set: {
-          label: metric.label,
-          value: metric.value,
-          detail: metric.detail,
-          trend: metric.trend,
-        },
-      });
-  }
 
   for (const [index, step] of onboardingSteps.entries()) {
     await db

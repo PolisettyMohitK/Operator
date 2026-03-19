@@ -89,18 +89,6 @@ export const sheetMappings = pgTable("sheet_mappings", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const dashboardMetrics = pgTable("dashboard_metrics", {
-  id: varchar("id", { length: 120 }).primaryKey(),
-  organizationId: varchar("organization_id", { length: 120 })
-    .references(() => organizations.id)
-    .notNull(),
-  label: varchar("label", { length: 120 }).notNull(),
-  value: varchar("value", { length: 120 }).notNull(),
-  detail: text("detail").notNull(),
-  trend: text("trend").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
-
 export const onboardingCheckpoints = pgTable("onboarding_checkpoints", {
   id: varchar("id", { length: 120 }).primaryKey(),
   organizationId: varchar("organization_id", { length: 120 })
