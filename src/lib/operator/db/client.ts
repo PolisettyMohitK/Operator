@@ -3,7 +3,17 @@ import { drizzle } from "drizzle-orm/neon-http";
 
 import * as schema from "@/lib/operator/db/schema";
 
-const databaseUrl = process.env.DATABASE_URL;
+type DatabaseEnv = Readonly<Record<string, string | undefined>>;
+
+export function getDatabaseUrl(env: DatabaseEnv) {
+  const databaseUrl = env.DATABASE_URL?.trim();
+
+  if (!databaseUrl) {
+    return null;
+  }
+
+  return databaseUrl;
+}
 
 let database:
   | ReturnType<typeof drizzle<typeof schema>>
@@ -11,6 +21,8 @@ let database:
   | undefined;
 
 export function getDb() {
+  const databaseUrl = getDatabaseUrl(process.env);
+
   if (!databaseUrl) {
     return null;
   }
