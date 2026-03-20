@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { AppShell } from "@/components/app/app-shell";
+import { disconnectConnectedAccount } from "@/app/actions/integrations";
 import { saveReminderCadence } from "@/app/actions/workspace-admin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +17,10 @@ export default async function OnboardingPage() {
   const onboarding = await getOnboardingDisplayState(viewerContext.organizationId);
   const isOwner = viewerContext.role === "owner";
   const reminderPolicy = onboarding.reminderPolicy ?? DEFAULT_REMINDER_POLICY;
+
+  function getConnectHref(provider: "gmail" | "google_sheets") {
+    return `/api/oauth/google/start?provider=${provider}&returnTo=${encodeURIComponent("/app/onboarding")}`;
+  }
 
   return (
     <AppShell
@@ -71,6 +78,58 @@ export default async function OnboardingPage() {
                   {item.value}
                 </div>
               </label>
+            ))}
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            {onboarding.providerConnections.map((connection) => (
+              <div
+                key={connection.provider}
+                className="rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-5"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-base font-semibold text-[color:var(--foreground)]">
+                    {connection.name}
+                  </p>
+                  <Badge>{connection.status}</Badge>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-[color:var(--muted-foreground)]">
+                  {connection.detail}
+                </p>
+                {connection.lastSuccessfulEventLabel ? (
+                  <p className="mt-3 text-xs uppercase tracking-[0.22em] text-[color:var(--muted-foreground)]">
+                    Last successful event: {connection.lastSuccessfulEventLabel}
+                  </p>
+                ) : null}
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {isOwner ? (
+                    connection.isConnected ? (
+                      <form
+                        action={disconnectConnectedAccount.bind(
+                          null,
+                          connection.provider,
+                        )}
+                      >
+                        <Button type="submit" variant="secondary">
+                          Disconnect
+                        </Button>
+                      </form>
+                    ) : (
+                      <Button asChild type="button">
+                        <Link href={getConnectHref(connection.provider)}>
+                          {connection.status === "Reconnect Required"
+                            ? "Reconnect"
+                            : "Connect"}
+                        </Link>
+                      </Button>
+                    )
+                  ) : (
+                    <p className="text-sm text-[color:var(--muted-foreground)]">
+                      Only owners can connect or disconnect Google accounts.
+                    </p>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
 

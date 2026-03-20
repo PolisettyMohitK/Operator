@@ -120,6 +120,8 @@ export async function getGoogleSheetsAdapterForOrganization(
   const encryptionSecret = getCredentialEncryptionSecret(env);
   const credentials = await resolveConnectedAccountCredentials({
     encryptionSecret,
+    env,
+    fetchImpl: input.fetchImpl,
     organizationId: input.organizationId,
     provider: "google_sheets",
   });

@@ -27,10 +27,12 @@ import {
   type WorkspaceStatusCard,
 } from "@/lib/operator/health/status";
 import {
+  countConnectedProviderConnections,
   formatActivityTimestamp,
   formatCompactUsdAmount,
   formatMetricCount,
   formatQueueChannelLabel,
+  summarizeProviderConnections,
   summarizeInvoiceChannels,
 } from "@/lib/operator/db/view-models";
 
@@ -86,11 +88,21 @@ export type ClientDisplayRow = {
 
 export type IntegrationDisplayRow = {
   id: string;
+  provider: "gmail" | "google_sheets" | "openclaw_runtime";
   name: string;
   state: "healthy" | "attention_needed" | "degraded" | "paused";
   status: string;
   detail: string;
+  accountLabel: string | null;
+  isConnected: boolean;
   lastSuccessfulEventLabel: string | null;
+};
+
+export type ProviderIntegrationDisplayRow = Omit<
+  IntegrationDisplayRow,
+  "provider"
+> & {
+  provider: "gmail" | "google_sheets";
 };
 
 export type TeamMemberDisplayRow = {
@@ -131,6 +143,7 @@ export type OnboardingDisplayState = {
     value: string;
   }>;
   approverCount: number;
+  providerConnections: ProviderIntegrationDisplayRow[];
   reminderPolicy: {
     urgentAfterDays: number;
     staleAfterDays: number;
@@ -168,6 +181,72 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
 
 function formatTimestampOrNull(value: Date | null | undefined) {
   return value ? format(value, "MMM dd, HH:mm") : null;
+}
+
+async function listPrimaryConnectedAccounts(
+  organizationId: string,
+): Promise<ProviderIntegrationDisplayRow[]> {
+  const db = getDb();
+
+  if (!db) {
+    return [];
+  }
+
+  const accountRows = await db
+    .select({
+      id: connectedAccounts.id,
+      provider: connectedAccounts.provider,
+      status: connectedAccounts.status,
+      externalAccountLabel: connectedAccounts.externalAccountLabel,
+      reconnectReason: connectedAccounts.reconnectReason,
+      lastSuccessfulSyncAt: connectedAccounts.lastSuccessfulSyncAt,
+      updatedAt: connectedAccounts.updatedAt,
+    })
+    .from(connectedAccounts)
+    .where(eq(connectedAccounts.organizationId, organizationId))
+    .orderBy(asc(connectedAccounts.provider), desc(connectedAccounts.updatedAt));
+
+  const grouped = new Map<
+    "gmail" | "google_sheets",
+    (typeof accountRows)[number]
+  >();
+
+  for (const row of accountRows) {
+    if (!grouped.has(row.provider)) {
+      grouped.set(row.provider, row);
+    }
+  }
+
+  return summarizeProviderConnections(
+    (["gmail", "google_sheets"] as const).map((provider) => {
+      const row = grouped.get(provider);
+
+      return (
+        row ?? {
+          externalAccountLabel: null,
+          lastSuccessfulSyncAt: null,
+          provider,
+          reconnectReason: null,
+          status: "disconnected",
+          updatedAt: new Date(0),
+        }
+      );
+    }),
+  ).map((row) => {
+    const source = grouped.get(row.provider);
+
+    return {
+      accountLabel: row.accountLabel,
+      detail: row.detail,
+      id: source?.id ?? `provider_${row.provider}`,
+      isConnected: row.isConnected,
+      lastSuccessfulEventLabel: formatTimestampOrNull(row.lastSuccessfulSyncAt),
+      name: row.name,
+      provider: row.provider,
+      state: row.state,
+      status: row.status,
+    } satisfies ProviderIntegrationDisplayRow;
+  });
 }
 
 export async function listQueueItems(
@@ -490,19 +569,8 @@ export async function listToolConnections(
     return [];
   }
 
-  const [accountRows, [policyRow], legacyRows] = await Promise.all([
-    db
-      .select({
-        id: connectedAccounts.id,
-        provider: connectedAccounts.provider,
-        status: connectedAccounts.status,
-        externalAccountLabel: connectedAccounts.externalAccountLabel,
-        reconnectReason: connectedAccounts.reconnectReason,
-        lastSuccessfulSyncAt: connectedAccounts.lastSuccessfulSyncAt,
-      })
-      .from(connectedAccounts)
-      .where(eq(connectedAccounts.organizationId, organizationId))
-      .orderBy(asc(connectedAccounts.provider)),
+  const [providerRows, [policyRow], legacyRows] = await Promise.all([
+    listPrimaryConnectedAccounts(organizationId),
     db
       .select({
         runtimeStatus: agentPolicies.runtimeStatus,
@@ -524,37 +592,26 @@ export async function listToolConnections(
       .orderBy(asc(toolConnections.provider)),
   ]);
 
-  if (accountRows.length === 0 && !policyRow) {
+  if (providerRows.length === 0 && !policyRow) {
     return legacyRows.map((row) => ({
       id: row.id,
+      provider: "openclaw_runtime",
       name: row.name,
       state: "attention_needed",
       status: row.status,
       detail: row.detail,
+      accountLabel: null,
+      isConnected: false,
       lastSuccessfulEventLabel: null,
     }));
   }
 
-  const rows: IntegrationDisplayRow[] = accountRows.map((row) => ({
-    id: row.id,
-    name: row.provider === "gmail" ? "Gmail" : "Google Sheets",
-    state:
-      row.status === "connected"
-        ? ("healthy" as const)
-        : row.status === "pending"
-          ? ("attention_needed" as const)
-          : ("degraded" as const),
-    status: titleCase(row.status),
-    detail:
-      row.status === "connected"
-        ? `Connected as ${row.externalAccountLabel}.`
-        : row.reconnectReason ?? `Connection is ${row.status.replace(/_/g, " ")}.`,
-    lastSuccessfulEventLabel: formatTimestampOrNull(row.lastSuccessfulSyncAt),
-  }));
+  const rows: IntegrationDisplayRow[] = [...providerRows];
 
   if (policyRow) {
     rows.push({
       id: "openclaw-runtime",
+      provider: "openclaw_runtime",
       name: "OpenClaw runtime",
       state:
         policyRow.runtimeStatus === "healthy"
@@ -566,6 +623,8 @@ export async function listToolConnections(
       detail:
         policyRow.lastError ??
         "Operator is applying the managed runtime policy to OpenClaw.",
+      accountLabel: null,
+      isConnected: policyRow.runtimeStatus === "healthy",
       lastSuccessfulEventLabel: formatTimestampOrNull(policyRow.lastObservedAt),
     });
   }
@@ -834,13 +893,15 @@ export async function getOnboardingDisplayState(
       steps: [],
       mappedColumns: [],
       approverCount: 0,
+      providerConnections: [],
       reminderPolicy: null,
       connectedToolCount: 0,
     };
   }
 
-  const [[mappingRow], [memoryProfile], toolRows, stepRows, [approverStats]] =
+  const [providerConnections, [mappingRow], [memoryProfile], stepRows, [approverStats]] =
     await Promise.all([
+      listPrimaryConnectedAccounts(organizationId),
       db
         .select({
           mapping: sheetMappings.mapping,
@@ -856,12 +917,6 @@ export async function getOnboardingDisplayState(
         .from(memoryProfiles)
         .where(eq(memoryProfiles.organizationId, organizationId))
         .limit(1),
-      db
-        .select({
-          id: connectedAccounts.id,
-        })
-        .from(connectedAccounts)
-        .where(eq(connectedAccounts.organizationId, organizationId)),
       db
         .select({
           id: onboardingCheckpoints.id,
@@ -912,7 +967,8 @@ export async function getOnboardingDisplayState(
       },
     ],
     approverCount: approverStats?.count ?? 0,
+    providerConnections,
     reminderPolicy: memoryProfile?.reminderPolicy ?? null,
-    connectedToolCount: toolRows.length,
+    connectedToolCount: countConnectedProviderConnections(providerConnections),
   };
 }

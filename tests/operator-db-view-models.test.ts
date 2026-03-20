@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  countConnectedProviderConnections,
   formatActivityTimestamp,
   formatCompactUsdAmount,
   formatMetricCount,
   formatQueueChannelLabel,
   isApprovalFinalized,
+  summarizeProviderConnections,
   summarizeInvoiceChannels,
 } from "@/lib/operator/db/view-models";
 
@@ -79,5 +81,71 @@ describe("formatActivityTimestamp", () => {
     expect(formatActivityTimestamp(new Date("2026-03-19T09:14:00Z"))).toBe(
       "09:14",
     );
+  });
+});
+
+describe("summarizeProviderConnections", () => {
+  it("integrations_query_surfaces_connected_reconnect_required_disconnected", () => {
+    expect(
+      summarizeProviderConnections([
+        {
+          externalAccountLabel: "hello@northline.test",
+          lastSuccessfulSyncAt: new Date("2026-03-19T09:14:00Z"),
+          provider: "gmail",
+          reconnectReason: null,
+          status: "connected",
+          updatedAt: new Date("2026-03-19T09:14:00Z"),
+        },
+        {
+          externalAccountLabel: "ops@northline.test",
+          lastSuccessfulSyncAt: null,
+          provider: "google_sheets",
+          reconnectReason: "Google revoked the refresh token.",
+          status: "reconnect_required",
+          updatedAt: new Date("2026-03-19T10:14:00Z"),
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        isConnected: true,
+        name: "Gmail",
+        provider: "gmail",
+        status: "Connected",
+      }),
+      expect.objectContaining({
+        isConnected: false,
+        name: "Google Sheets",
+        provider: "google_sheets",
+        state: "degraded",
+        status: "Reconnect Required",
+      }),
+    ]);
+  });
+});
+
+describe("countConnectedProviderConnections", () => {
+  it("onboarding_reflects_google_connect_state", () => {
+    expect(
+      countConnectedProviderConnections(
+        summarizeProviderConnections([
+          {
+            externalAccountLabel: "hello@northline.test",
+            lastSuccessfulSyncAt: new Date("2026-03-19T09:14:00Z"),
+            provider: "gmail",
+            reconnectReason: null,
+            status: "connected",
+            updatedAt: new Date("2026-03-19T09:14:00Z"),
+          },
+          {
+            externalAccountLabel: "ops@northline.test",
+            lastSuccessfulSyncAt: null,
+            provider: "google_sheets",
+            reconnectReason: "Reconnect Google Sheets to continue syncing.",
+            status: "reconnect_required",
+            updatedAt: new Date("2026-03-19T10:14:00Z"),
+          },
+        ]),
+      ),
+    ).toBe(1);
   });
 });

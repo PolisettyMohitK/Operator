@@ -16,6 +16,7 @@ function createSelectChain<T>(rows: T[]) {
     from: vi.fn().mockReturnThis(),
     innerJoin: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue(rows),
   };
 }

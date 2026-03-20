@@ -1,6 +1,10 @@
+import Link from "next/link";
+
+import { disconnectConnectedAccount } from "@/app/actions/integrations";
 import { AppShell } from "@/components/app/app-shell";
 import { WorkspaceStatusCard } from "@/components/app/workspace-status-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireViewerContext } from "@/lib/operator/datalayer/viewer-context";
 import {
@@ -16,6 +20,11 @@ export default async function IntegrationsPage() {
     listToolConnections(viewerContext.organizationId),
     getWorkspaceHealthCards(viewerContext.organizationId),
   ]);
+  const isOwner = viewerContext.role === "owner";
+
+  function getConnectHref(provider: "gmail" | "google_sheets") {
+    return `/api/oauth/google/start?provider=${provider}&returnTo=${encodeURIComponent("/app/integrations")}`;
+  }
 
   return (
     <AppShell
@@ -35,18 +44,6 @@ export default async function IntegrationsPage() {
           </div>
         ) : null}
 
-      {integrations.length === 0 ? (
-        <Card className="p-6">
-          <p className="eyebrow">Integrations</p>
-          <h2 className="mt-2 text-2xl font-semibold text-[color:var(--foreground)]">
-            No provider connections are stored yet
-          </h2>
-          <p className="mt-4 text-sm leading-7 text-[color:var(--muted-foreground)]">
-            Connect Gmail and Google Sheets to activate invoice monitoring,
-            draft preparation, and outbound follow-up delivery.
-          </p>
-        </Card>
-      ) : (
         <div className="grid gap-5 md:grid-cols-2">
           {integrations.map((integration) => (
             <Card key={integration.id} className="p-6">
@@ -67,10 +64,40 @@ export default async function IntegrationsPage() {
                   Last successful event: {integration.lastSuccessfulEventLabel}
                 </p>
               ) : null}
+
+              {integration.provider !== "openclaw_runtime" ? (
+                <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[color:var(--border)] pt-5">
+                  {isOwner ? (
+                    integration.isConnected ? (
+                      <form
+                        action={disconnectConnectedAccount.bind(
+                          null,
+                          integration.provider,
+                        )}
+                      >
+                        <Button type="submit" variant="secondary">
+                          Disconnect
+                        </Button>
+                      </form>
+                    ) : (
+                      <Button asChild type="button">
+                        <Link href={getConnectHref(integration.provider)}>
+                          {integration.status === "Reconnect Required"
+                            ? "Reconnect"
+                            : "Connect"}
+                        </Link>
+                      </Button>
+                    )
+                  ) : (
+                    <p className="text-sm text-[color:var(--muted-foreground)]">
+                      Only workspace owners can change Google connections.
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </Card>
           ))}
         </div>
-      )}
       </div>
     </AppShell>
   );
