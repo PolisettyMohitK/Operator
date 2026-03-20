@@ -103,13 +103,15 @@ export function getCredentialEncryptionSecret(env: IntegrationEnv) {
   }
 
   const clerkSecret = readEnvValue(env.CLERK_SECRET_KEY);
+  const canUseDevelopmentFallback =
+    env.NODE_ENV === "development" || env.NODE_ENV === "test";
 
-  if (env.NODE_ENV !== "production" && clerkSecret) {
+  if (canUseDevelopmentFallback && clerkSecret) {
     return clerkSecret;
   }
 
   throw new Error(
-    "OPERATOR_ENCRYPTION_KEY is required in production to protect provider credentials.",
+    "OPERATOR_ENCRYPTION_KEY is required to protect provider credentials outside explicit development and test environments.",
   );
 }
 

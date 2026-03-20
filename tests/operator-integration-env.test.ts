@@ -167,13 +167,26 @@ describe("credential and provider helpers", () => {
     ).toBe("encrypted-secret");
   });
 
-  it("falls back to the Clerk secret only in non-production", () => {
+  it("falls back to the Clerk secret only in explicit development and test environments", () => {
     expect(
       getCredentialEncryptionSecret({
         NODE_ENV: "development",
         CLERK_SECRET_KEY: "clerk-secret",
       }),
     ).toBe("clerk-secret");
+
+    expect(
+      getCredentialEncryptionSecret({
+        NODE_ENV: "test",
+        CLERK_SECRET_KEY: "clerk-secret",
+      }),
+    ).toBe("clerk-secret");
+
+    expect(() =>
+      getCredentialEncryptionSecret({
+        CLERK_SECRET_KEY: "clerk-secret",
+      }),
+    ).toThrow("OPERATOR_ENCRYPTION_KEY is required");
 
     expect(() =>
       getCredentialEncryptionSecret({

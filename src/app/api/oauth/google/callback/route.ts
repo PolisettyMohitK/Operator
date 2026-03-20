@@ -263,6 +263,15 @@ export async function GET(request: Request) {
       }
     });
 
+    if (state.provider === "google_sheets") {
+      const { processQueuedInvoiceSyncRuns } = await import(
+        "@/lib/operator/sync/invoice-worker"
+      );
+      await processQueuedInvoiceSyncRuns({
+        organizationId: viewerContext.organizationId,
+      });
+    }
+
     return redirectToReturnTo(request, state.returnTo, "connected");
   } catch {
     return redirectToReturnTo(request, state.returnTo, "connect_failed");

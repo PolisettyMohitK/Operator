@@ -8,12 +8,14 @@ import { getDb } from "@/lib/operator/db/client";
 import {
   activityLogs,
   approvalItems,
+  connectedAccounts,
   deliveryAttempts,
   syncRuns,
 } from "@/lib/operator/db/schema";
 import { processQueuedApprovalDeliveries } from "@/lib/operator/delivery/worker";
 import { getOpsUserIds } from "@/lib/operator/integrations/env";
 import { canAccessOpsSurface } from "@/lib/operator/ops/access";
+import { processQueuedInvoiceSyncRuns } from "@/lib/operator/sync/invoice-worker";
 
 function buildRecordId(prefix: string, value: string) {
   return `${prefix}_${value}_${crypto.randomUUID()}`.slice(0, 120);
@@ -44,10 +46,24 @@ export async function retryInvoiceSync(organizationId: string) {
     throw new Error("DATABASE_URL is not configured.");
   }
 
+  const [connectedGoogleSheetsAccount] = await db
+    .select({
+      id: connectedAccounts.id,
+    })
+    .from(connectedAccounts)
+    .where(
+      and(
+        eq(connectedAccounts.organizationId, organizationId),
+        eq(connectedAccounts.provider, "google_sheets"),
+        eq(connectedAccounts.status, "connected"),
+      ),
+    )
+    .limit(1);
+
   await db.insert(syncRuns).values({
     id: buildRecordId("sync", organizationId),
     organizationId,
-    connectedAccountId: null,
+    connectedAccountId: connectedGoogleSheetsAccount?.id ?? null,
     kind: "invoice_sync",
     status: "pending",
     detail: "Manual invoice sync retry requested from the ops surface.",
@@ -71,6 +87,10 @@ export async function retryInvoiceSync(organizationId: string) {
       channel: "Web",
       trigger: "ops_retry",
     },
+  });
+
+  await processQueuedInvoiceSyncRuns({
+    organizationId,
   });
 
   revalidatePath("/ops");

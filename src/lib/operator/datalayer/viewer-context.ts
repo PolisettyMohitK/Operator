@@ -20,7 +20,7 @@ export type SeedWorkspaceClaimState = Readonly<{
 }>;
 
 export function allowsImplicitWorkspaceProvisioning(nodeEnv?: string) {
-  return nodeEnv !== "production";
+  return nodeEnv === "development" || nodeEnv === "test";
 }
 
 export function shouldAutoClaimSeedWorkspace({

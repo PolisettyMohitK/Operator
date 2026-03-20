@@ -53,9 +53,11 @@ describe("shouldAutoClaimSeedWorkspace", () => {
 });
 
 describe("allowsImplicitWorkspaceProvisioning", () => {
-  it("keeps implicit workspace creation available in non-production only", () => {
+  it("keeps implicit workspace creation available only in development and test", () => {
     expect(allowsImplicitWorkspaceProvisioning("development")).toBe(true);
     expect(allowsImplicitWorkspaceProvisioning("test")).toBe(true);
+    expect(allowsImplicitWorkspaceProvisioning("preview")).toBe(false);
+    expect(allowsImplicitWorkspaceProvisioning(undefined)).toBe(false);
     expect(allowsImplicitWorkspaceProvisioning("production")).toBe(false);
   });
 });
