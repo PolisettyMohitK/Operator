@@ -8,6 +8,7 @@ import {
 } from "@/lib/operator/datalayer/viewer-context";
 import { mutateApprovalItemWithMembership } from "@/lib/operator/datalayer/approval-mutations";
 import { dispatchApprovalPrompts } from "@/lib/operator/delivery/approval-prompts";
+import { processQueuedApprovalDeliveries } from "@/lib/operator/delivery/worker";
 
 async function mutateApprovalItem(id: string, action: "approve" | "reject") {
   const viewerContext = await requireViewerContext();
@@ -18,7 +19,7 @@ async function mutateApprovalItem(id: string, action: "approve" | "reject") {
     targetOrganizationId: viewerContext.organizationId,
   });
 
-  await mutateApprovalItemWithMembership({
+  const result = await mutateApprovalItemWithMembership({
     action,
     actorMembershipId: viewerContext.membershipId,
     approvalItemId: id,
@@ -26,8 +27,15 @@ async function mutateApprovalItem(id: string, action: "approve" | "reject") {
     organizationId: viewerContext.organizationId,
   });
 
+  if (action === "approve" && result.status === "approved") {
+    await processQueuedApprovalDeliveries({
+      organizationId: viewerContext.organizationId,
+    });
+  }
+
   revalidatePath("/app");
   revalidatePath("/app/activity");
+  revalidatePath("/app/integrations");
   revalidatePath("/app/queue");
 }
 

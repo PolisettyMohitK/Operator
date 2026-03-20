@@ -13,6 +13,11 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const teamRole = pgEnum("team_role", ["owner", "staff", "approver"]);
+export const workspaceStatus = pgEnum("workspace_status", [
+  "draft",
+  "active",
+  "paused",
+]);
 export const approvalStatus = pgEnum("approval_status", [
   "pending",
   "edited",
@@ -32,6 +37,35 @@ export const approvalRisk = pgEnum("approval_risk", [
   "watch",
   "urgent",
 ]);
+export const connectedAccountProvider = pgEnum("connected_account_provider", [
+  "gmail",
+  "google_sheets",
+]);
+export const connectedAccountStatus = pgEnum("connected_account_status", [
+  "pending",
+  "connected",
+  "reconnect_required",
+  "disconnected",
+  "error",
+]);
+export const syncRunStatus = pgEnum("sync_run_status", [
+  "pending",
+  "running",
+  "succeeded",
+  "failed",
+  "stalled",
+]);
+export const subscriptionPlan = pgEnum("subscription_plan", [
+  "trial",
+  "personal",
+]);
+export const subscriptionStatus = pgEnum("subscription_status", [
+  "draft",
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+]);
 
 export const organizations = pgTable(
   "organizations",
@@ -43,6 +77,8 @@ export const organizations = pgTable(
     businessType: varchar("business_type", { length: 160 }).notNull(),
     ownerName: varchar("owner_name", { length: 160 }).notNull(),
     toneGuidance: text("tone_guidance").notNull(),
+    status: workspaceStatus("status").default("draft").notNull(),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
@@ -98,6 +134,65 @@ export const toolConnections = pgTable("tool_connections", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const connectedAccounts = pgTable(
+  "connected_accounts",
+  {
+    id: varchar("id", { length: 120 }).primaryKey(),
+    organizationId: varchar("organization_id", { length: 120 })
+      .references(() => organizations.id)
+      .notNull(),
+    provider: connectedAccountProvider("provider").notNull(),
+    externalAccountId: varchar("external_account_id", { length: 180 }).notNull(),
+    externalAccountLabel: varchar("external_account_label", { length: 180 }).notNull(),
+    status: connectedAccountStatus("status").notNull(),
+    grantedScopes: jsonb("granted_scopes").$type<string[]>().notNull().default([]),
+    reconnectReason: text("reconnect_reason"),
+    lastSuccessfulSyncAt: timestamp("last_successful_sync_at", { withTimezone: true }),
+    lastSyncState: varchar("last_sync_state", { length: 64 }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    organizationProviderIdx: uniqueIndex("connected_accounts_org_provider_idx").on(
+      table.organizationId,
+      table.provider,
+      table.externalAccountId,
+    ),
+  }),
+);
+
+export const accountTokens = pgTable(
+  "account_tokens",
+  {
+    id: varchar("id", { length: 120 }).primaryKey(),
+    organizationId: varchar("organization_id", { length: 120 })
+      .references(() => organizations.id)
+      .notNull(),
+    connectedAccountId: varchar("connected_account_id", { length: 120 })
+      .references(() => connectedAccounts.id)
+      .notNull(),
+    encryptedPayload: jsonb("encrypted_payload")
+      .$type<{
+        algorithm: "aes-256-gcm";
+        ciphertext: string;
+        iv: string;
+        keyVersion: "v1";
+        tag: string;
+      }>()
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    refreshedAt: timestamp("refreshed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    connectedAccountIdx: uniqueIndex("account_tokens_connected_account_idx").on(
+      table.connectedAccountId,
+    ),
+  }),
+);
 
 export const sheetMappings = pgTable("sheet_mappings", {
   id: varchar("id", { length: 120 }).primaryKey(),
@@ -221,3 +316,120 @@ export const memoryProfiles = pgTable("memory_profiles", {
     .default({}),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const agentPolicies = pgTable(
+  "agent_policies",
+  {
+    id: varchar("id", { length: 120 }).primaryKey(),
+    organizationId: varchar("organization_id", { length: 120 })
+      .references(() => organizations.id)
+      .notNull(),
+    desiredPolicyVersion: integer("desired_policy_version").notNull(),
+    desiredPolicyHash: varchar("desired_policy_hash", { length: 180 }).notNull(),
+    desiredPolicy: jsonb("desired_policy").$type<Record<string, unknown>>().notNull(),
+    runtimeStatus: varchar("runtime_status", { length: 64 }).notNull(),
+    runtimeSummary: jsonb("runtime_summary")
+      .$type<Record<string, unknown> | null>()
+      .default(null),
+    lastObservedRuntime: jsonb("last_observed_runtime")
+      .$type<Record<string, unknown> | null>()
+      .default(null),
+    lastObservedAt: timestamp("last_observed_at", { withTimezone: true }),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    organizationPolicyIdx: uniqueIndex("agent_policies_org_idx").on(
+      table.organizationId,
+    ),
+  }),
+);
+
+export const policySnapshots = pgTable("policy_snapshots", {
+  id: varchar("id", { length: 120 }).primaryKey(),
+  organizationId: varchar("organization_id", { length: 120 })
+    .references(() => organizations.id)
+    .notNull(),
+  actorMembershipId: varchar("actor_membership_id", { length: 120 }).references(
+    () => memberships.id,
+  ),
+  policyVersion: integer("policy_version").notNull(),
+  changeSummary: jsonb("change_summary")
+    .$type<
+      Array<{
+        path: string;
+        before: boolean;
+        after: boolean;
+        effect: string;
+        requiresConfirmation: boolean;
+        description: string;
+      }>
+    >()
+    .notNull()
+    .default([]),
+  fullPolicy: jsonb("full_policy").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const syncRuns = pgTable("sync_runs", {
+  id: varchar("id", { length: 120 }).primaryKey(),
+  organizationId: varchar("organization_id", { length: 120 })
+    .references(() => organizations.id)
+    .notNull(),
+  connectedAccountId: varchar("connected_account_id", { length: 120 }).references(
+    () => connectedAccounts.id,
+  ),
+  kind: varchar("kind", { length: 80 }).notNull(),
+  status: syncRunStatus("status").notNull(),
+  detail: text("detail").notNull(),
+  retryCount: integer("retry_count").default(0).notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: varchar("id", { length: 120 }).primaryKey(),
+    organizationId: varchar("organization_id", { length: 120 })
+      .references(() => organizations.id)
+      .notNull(),
+    plan: subscriptionPlan("plan").notNull(),
+    status: subscriptionStatus("status").notNull(),
+    providerCustomerId: varchar("provider_customer_id", { length: 180 }),
+    providerSubscriptionId: varchar("provider_subscription_id", { length: 180 }),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    currentPeriodEndsAt: timestamp("current_period_ends_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    organizationSubscriptionIdx: uniqueIndex("subscriptions_org_idx").on(
+      table.organizationId,
+    ),
+  }),
+);
+
+export const featureGates = pgTable(
+  "feature_gates",
+  {
+    id: varchar("id", { length: 120 }).primaryKey(),
+    organizationId: varchar("organization_id", { length: 120 })
+      .references(() => organizations.id)
+      .notNull(),
+    key: varchar("key", { length: 120 }).notNull(),
+    enabled: boolean("enabled").default(false).notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    organizationFeatureGateIdx: uniqueIndex("feature_gates_org_key_idx").on(
+      table.organizationId,
+      table.key,
+    ),
+  }),
+);

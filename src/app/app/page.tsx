@@ -2,9 +2,11 @@ import { ActivityFeed } from "@/components/app/activity-feed";
 import { AppShell } from "@/components/app/app-shell";
 import { QueueTable } from "@/components/app/queue-table";
 import { StatCard } from "@/components/app/stat-card";
+import { WorkspaceStatusCard } from "@/components/app/workspace-status-card";
 import { Card } from "@/components/ui/card";
 import { requireViewerContext } from "@/lib/operator/datalayer/viewer-context";
 import {
+  getWorkspaceHealthCards,
   listActivityEvents,
   listClientsForPage,
   listDashboardMetrics,
@@ -15,12 +17,13 @@ export const dynamic = "force-dynamic";
 
 export default async function AppOverviewPage() {
   const viewerContext = await requireViewerContext();
-  const [queueMetrics, queueItems, activityItems, clients] =
+  const [queueMetrics, queueItems, activityItems, clients, healthCards] =
     await Promise.all([
       listDashboardMetrics(viewerContext.organizationId),
       listQueueItems(viewerContext.organizationId),
       listActivityEvents(viewerContext.organizationId, 3),
       listClientsForPage(viewerContext.organizationId, 3),
+      getWorkspaceHealthCards(viewerContext.organizationId),
     ]);
 
   return (
@@ -31,6 +34,16 @@ export default async function AppOverviewPage() {
     >
       <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-5">
+          {healthCards.length > 0 ? (
+            <div className="grid gap-4">
+              {healthCards.map((card) => (
+                <WorkspaceStatusCard
+                  key={`${card.subject}-${card.state}`}
+                  card={card}
+                />
+              ))}
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             {queueMetrics.map((metric) => (
               <StatCard key={metric.label} {...metric} />

@@ -19,6 +19,10 @@ export type SeedWorkspaceClaimState = Readonly<{
   realMembershipCount: number;
 }>;
 
+export function allowsImplicitWorkspaceProvisioning(nodeEnv?: string) {
+  return nodeEnv !== "production";
+}
+
 export function shouldAutoClaimSeedWorkspace({
   nodeEnv,
   organizationCount,
@@ -26,7 +30,7 @@ export function shouldAutoClaimSeedWorkspace({
   realMembershipCount,
 }: SeedWorkspaceClaimState) {
   return (
-    nodeEnv !== "production" &&
+    allowsImplicitWorkspaceProvisioning(nodeEnv) &&
     organizationCount === 1 &&
     seededMembershipCount > 0 &&
     realMembershipCount === 0
@@ -338,6 +342,13 @@ async function ensureClerkOrganizationWorkspace(
     businessName = "Operator Workspace";
   }
 
+  if (
+    !existingOrganization &&
+    !allowsImplicitWorkspaceProvisioning(process.env.NODE_ENV)
+  ) {
+    return null;
+  }
+
   const organizationId = existingOrganization?.id ?? clampIdentifier("org", orgId);
   await ensureOrganizationRow(organizationId, {
     clerkOrganizationId: orgId,
@@ -356,6 +367,10 @@ async function ensureClerkOrganizationWorkspace(
 }
 
 async function ensurePersonalWorkspace(userId: string, displayName: string) {
+  if (!allowsImplicitWorkspaceProvisioning(process.env.NODE_ENV)) {
+    return null;
+  }
+
   const organizationId = clampIdentifier("org", `user_${userId}`);
   const workspaceLabel = "Operator Workspace";
   const businessName = `${displayName}'s Workspace`;

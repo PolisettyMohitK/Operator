@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   getClerkWebhookSecret,
+  getCredentialEncryptionSecret,
   getApprovalLinkSecret,
   getGmailAdapterConfig,
+  getGoogleOAuthConfig,
   getGoogleSheetsAdapterConfig,
   getOpenClawAdapterConfig,
+  getOpsUserIds,
   getOperatorAppUrl,
   getWhatsAppAdapterConfig,
 } from "@/lib/operator/integrations/env";
@@ -114,8 +117,10 @@ describe("provider adapter config helpers", () => {
       }),
     ).toEqual({
       apiToken: "secret",
+      applyPolicyPath: "/api/operator/runtime/policy",
       baseUrl: "https://openclaw.example.com",
       draftPath: "/api/operator/draft-recommendations",
+      runtimeStatePath: "/api/operator/runtime/state",
     });
   });
 });
@@ -133,5 +138,56 @@ describe("getClerkWebhookSecret", () => {
     expect(() => getClerkWebhookSecret({})).toThrow(
       "CLERK_WEBHOOK_SECRET is required",
     );
+  });
+});
+
+describe("credential and provider helpers", () => {
+  it("returns the Google OAuth config only when the full provider config exists", () => {
+    expect(
+      getGoogleOAuthConfig({
+        GOOGLE_OAUTH_CLIENT_ID: "client-id",
+        GOOGLE_OAUTH_CLIENT_SECRET: "client-secret",
+        GOOGLE_OAUTH_REDIRECT_URI: "https://operator.example.com/api/oauth/google",
+      }),
+    ).toEqual({
+      clientId: "client-id",
+      clientSecret: "client-secret",
+      redirectUri: "https://operator.example.com/api/oauth/google",
+    });
+
+    expect(getGoogleOAuthConfig({})).toBeNull();
+  });
+
+  it("returns a dedicated encryption secret when configured", () => {
+    expect(
+      getCredentialEncryptionSecret({
+        OPERATOR_ENCRYPTION_KEY: " encrypted-secret ",
+        CLERK_SECRET_KEY: "clerk-secret",
+      }),
+    ).toBe("encrypted-secret");
+  });
+
+  it("falls back to the Clerk secret only in non-production", () => {
+    expect(
+      getCredentialEncryptionSecret({
+        NODE_ENV: "development",
+        CLERK_SECRET_KEY: "clerk-secret",
+      }),
+    ).toBe("clerk-secret");
+
+    expect(() =>
+      getCredentialEncryptionSecret({
+        NODE_ENV: "production",
+        CLERK_SECRET_KEY: "clerk-secret",
+      }),
+    ).toThrow("OPERATOR_ENCRYPTION_KEY is required");
+  });
+
+  it("parses the ops allowlist from comma-delimited env values", () => {
+    expect(
+      getOpsUserIds({
+        OPERATOR_OPS_USER_IDS: " user_1, user_2 ,, user_3 ",
+      }),
+    ).toEqual(["user_1", "user_2", "user_3"]);
   });
 });

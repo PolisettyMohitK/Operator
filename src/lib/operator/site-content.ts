@@ -32,7 +32,7 @@ export const marketingNavigation: NavItem[] = [
   { href: "/how-it-works", label: "How It Works" },
   { href: "/security", label: "Security" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/join-alpha", label: "Join Alpha" },
+  { href: "/join-alpha", label: "Start Trial" },
 ];
 
 export const marketingPrinciples: Principle[] = [
@@ -51,7 +51,7 @@ export const marketingPrinciples: Principle[] = [
   {
     title: "Business-owned channels only",
     description:
-      "Approved follow-ups go out through the business' connected Gmail or WhatsApp flow, not an anonymous system inbox.",
+      "Approved follow-ups go out through the business' connected Gmail flow, not an anonymous system inbox.",
     icon: MailCheck,
   },
   {
@@ -79,7 +79,7 @@ export const howItWorksSteps = [
     step: "03",
     title: "Review once, send everywhere",
     description:
-      "Approvals stay synchronized across the dashboard, email alerts, and WhatsApp action surfaces.",
+      "Approvals stay synchronized across the dashboard and email alerts while Gmail remains the live delivery channel.",
   },
 ];
 
@@ -123,32 +123,32 @@ export const securityHighlights = [
   "Explicit approval gates before irreversible outbound actions",
   "Role-based permissions for owners, staff, and delegated approvers",
   "Scoped account context for every worker execution",
-  "Complete action logging across web, email, and WhatsApp surfaces",
+  "Complete action logging across web and email surfaces",
 ];
 
 export const pricingCards = [
   {
-    name: "Closed Alpha",
+    name: "14-day Trial",
     price: "Free",
-    note: "For the first design partners",
+    note: "Start with the full invoice recovery loop",
     description:
-      "Operator ships with white-glove support while the core overdue recovery workflow is hardened.",
+      "Connect Gmail and Google Sheets, review live approvals, and validate the recovery loop before the paid plan starts.",
     features: [
-      "One workspace with owner, staff, and approver roles",
-      "Gmail, Google Sheets, web, email, and WhatsApp approval surfaces",
-      "Product feedback loop with direct implementation access",
+      "One active workspace with owner, staff, and approver roles",
+      "Google-first setup with Gmail delivery and Google Sheets sync",
+      "Managed OpenClaw policy with safe defaults and audit history",
     ],
   },
   {
-    name: "Planned Personal",
+    name: "Personal",
     price: "$9 / month",
-    note: "Future launch tier",
+    note: "Paid V1 launch tier",
     description:
-      "The intended long-term price point for solo operators who need background work handled without hiring operations staff.",
+      "For solo operators and small teams who want overdue invoice recovery running continuously without hiring operations help.",
     features: [
-      "Unlimited monitoring for invoice follow-up",
-      "Persistent memory and business-aware drafts",
-      "Auditability and approvals without enterprise complexity",
+      "Continuous invoice monitoring and Gmail delivery",
+      "Persistent business memory and managed OpenClaw drafting",
+      "Auditability, approvals, and internal ops recovery built in",
     ],
   },
 ];
@@ -157,13 +157,13 @@ export const joinAlphaReasons = [
   {
     title: "A genuine workflow, not a demo loop",
     description:
-      "Operator is being built against one hard business problem with real integrations and a visible approval queue.",
+      "Operator launches with one production workflow: overdue invoice recovery with real integrations and a visible approval queue.",
     icon: CheckCheck,
   },
   {
-    title: "Fast operational nudges",
+    title: "Fast setup, no alpha waiting room",
     description:
-      "Email and WhatsApp keep pending approvals visible without forcing users to live inside another dashboard.",
+      "Start a trial, connect Google, and move from draft workspace to active monitoring without a manual approval queue from us.",
     icon: BellRing,
   },
   {

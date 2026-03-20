@@ -3,12 +3,8 @@ import { and, eq } from "drizzle-orm";
 
 import {
   GmailAdapterNotConfiguredError,
-  getGmailAdapter,
+  getGmailAdapterForOrganization,
 } from "@/lib/operator/adapters/gmail";
-import {
-  WhatsAppAdapterNotConfiguredError,
-  getWhatsAppAdapter,
-} from "@/lib/operator/adapters/whatsapp";
 import { getDb } from "@/lib/operator/db/client";
 import {
   activityLogs,
@@ -64,7 +60,7 @@ function formatCurrency(amount: number) {
 }
 
 function formatAttemptChannel(channel: ApprovalLinkChannel) {
-  return channel === "email" ? "Email" : "WhatsApp";
+  return channel === "email" ? "Email" : "Web";
 }
 
 export function buildApprovalPromptCopy(input: ApprovalPromptCopyInput) {
@@ -256,30 +252,19 @@ export async function dispatchApprovalPrompts(
     );
 
   const queueUrl = new URL("/app/queue", appUrl).toString();
-  const gmailAdapter =
-    (() => {
-      try {
-        return getGmailAdapter();
-      } catch (error) {
-        if (error instanceof GmailAdapterNotConfiguredError) {
-          return null;
-        }
-
-        throw error;
+  const gmailAdapter = await (async () => {
+    try {
+      return await getGmailAdapterForOrganization({
+        organizationId: input.organizationId,
+      });
+    } catch (error) {
+      if (error instanceof GmailAdapterNotConfiguredError) {
+        return null;
       }
-    })();
-  const whatsAppAdapter =
-    (() => {
-      try {
-        return getWhatsAppAdapter();
-      } catch (error) {
-        if (error instanceof WhatsAppAdapterNotConfiguredError) {
-          return null;
-        }
 
-        throw error;
-      }
-    })();
+      throw error;
+    }
+  })();
 
   const attempts: ApprovalPromptDispatchAttempt[] = [];
 
@@ -380,99 +365,6 @@ export async function dispatchApprovalPrompts(
       }
     }
 
-    if (whatsAppAdapter) {
-      const whatsAppDeliveryAttemptId = buildRecordId(
-        "delivery",
-        `${approvalItem.id}_whatsapp_${approver.id}`,
-      );
-      const whatsAppUrls = buildActionUrls({
-        approvalItemId: approvalItem.id,
-        appUrl,
-        channel: "whatsapp",
-        deliveryAttemptId: whatsAppDeliveryAttemptId,
-        secret,
-      });
-      const promptCopy = buildApprovalPromptCopy({
-        amountDue: Number(approvalItem.amountDue),
-        approveUrl: whatsAppUrls.approveUrl,
-        clientName: approvalItem.clientName,
-        draftContent: approvalItem.draftContent,
-        invoiceCode: approvalItem.invoiceCode,
-        queueUrl,
-        reason: approvalItem.reason,
-        rejectUrl: whatsAppUrls.rejectUrl,
-      });
-
-      if (contacts.phone) {
-        try {
-          const sentMessage = await whatsAppAdapter.sendActionPrompt({
-            phoneNumber: contacts.phone,
-            message: promptCopy.whatsAppMessage,
-            approvalItemId: approvalItem.id,
-          });
-
-          const attempt = {
-            channel: "whatsapp" as const,
-            deliveryAttemptId: whatsAppDeliveryAttemptId,
-            membershipId: approver.id,
-            providerMessageId: sentMessage.providerMessageId,
-            recipient: contacts.phone,
-            state: "prompt_sent" as const,
-          };
-          attempts.push(attempt);
-          await persistPromptAttempt({
-            approvalItemId: approvalItem.id,
-            channel: attempt.channel,
-            id: attempt.deliveryAttemptId,
-            membershipId: attempt.membershipId,
-            organizationId: input.organizationId,
-            providerMessageId: attempt.providerMessageId,
-            recipient: attempt.recipient,
-            state: attempt.state,
-          });
-        } catch {
-          const attempt = {
-            channel: "whatsapp" as const,
-            deliveryAttemptId: whatsAppDeliveryAttemptId,
-            membershipId: approver.id,
-            providerMessageId: null,
-            recipient: contacts.phone,
-            state: "prompt_failed" as const,
-          };
-          attempts.push(attempt);
-          await persistPromptAttempt({
-            approvalItemId: approvalItem.id,
-            channel: attempt.channel,
-            id: attempt.deliveryAttemptId,
-            membershipId: attempt.membershipId,
-            organizationId: input.organizationId,
-            providerMessageId: attempt.providerMessageId,
-            recipient: attempt.recipient,
-            state: attempt.state,
-          });
-        }
-      } else {
-        const attempt = {
-          channel: "whatsapp" as const,
-          deliveryAttemptId: whatsAppDeliveryAttemptId,
-          membershipId: approver.id,
-          providerMessageId: null,
-          recipient: null,
-          state: "skipped" as const,
-        };
-        attempts.push(attempt);
-        await persistPromptAttempt({
-          approvalItemId: approvalItem.id,
-          channel: attempt.channel,
-          id: attempt.deliveryAttemptId,
-          membershipId: attempt.membershipId,
-          organizationId: input.organizationId,
-          providerMessageId: attempt.providerMessageId,
-          recipient: attempt.recipient,
-          state: attempt.state,
-        });
-      }
-    }
   }
 
   const sentAttempts = attempts.filter((attempt) => attempt.state === "prompt_sent");

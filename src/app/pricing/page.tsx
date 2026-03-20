@@ -10,8 +10,7 @@ export default function PricingPage() {
       <section className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8 md:py-24">
         <p className="eyebrow">Pricing</p>
         <h1 className="mt-3 max-w-4xl font-serif text-5xl text-[color:var(--foreground)] md:text-6xl">
-          Closed alpha now. The intended long-term price is still the price of a
-          coffee.
+          One trial, one paid plan, one invoice recovery product.
         </h1>
 
         <div className="mt-12 grid gap-5 md:grid-cols-2">

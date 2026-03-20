@@ -19,7 +19,7 @@ const displaySerif = Fraunces({
 export const metadata: Metadata = {
   title: "Operator",
   description:
-    "Operator is a premium closed-alpha operations system for small businesses recovering overdue invoices with approvals and full auditability.",
+    "Operator is a paid invoice recovery product for small businesses, combining Gmail delivery, Google Sheets ingestion, managed OpenClaw drafting, and full auditability.",
 };
 
 export default function RootLayout({

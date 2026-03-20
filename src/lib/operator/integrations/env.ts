@@ -21,7 +21,27 @@ export type OpenClawAdapterConfig = Readonly<{
   baseUrl: string;
   apiToken: string | null;
   draftPath: string;
+  runtimeStatePath: string;
+  applyPolicyPath: string;
 }>;
+
+export type GoogleOAuthConfig = Readonly<{
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}>;
+
+export function getOperatorGmailSender(env: IntegrationEnv) {
+  const senderEmail = readEnvValue(env.OPERATOR_GMAIL_SENDER);
+
+  if (!senderEmail) {
+    throw new Error(
+      "OPERATOR_GMAIL_SENDER is required to send Gmail messages from Operator.",
+    );
+  }
+
+  return senderEmail;
+}
 
 function readEnvValue(value?: string | null) {
   const normalized = value?.trim();
@@ -75,6 +95,49 @@ export function getClerkWebhookSecret(env: IntegrationEnv) {
   return webhookSecret;
 }
 
+export function getCredentialEncryptionSecret(env: IntegrationEnv) {
+  const explicitSecret = readEnvValue(env.OPERATOR_ENCRYPTION_KEY);
+
+  if (explicitSecret) {
+    return explicitSecret;
+  }
+
+  const clerkSecret = readEnvValue(env.CLERK_SECRET_KEY);
+
+  if (env.NODE_ENV !== "production" && clerkSecret) {
+    return clerkSecret;
+  }
+
+  throw new Error(
+    "OPERATOR_ENCRYPTION_KEY is required in production to protect provider credentials.",
+  );
+}
+
+export function getOpsUserIds(env: IntegrationEnv) {
+  return (readEnvValue(env.OPERATOR_OPS_USER_IDS) ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+export function getGoogleOAuthConfig(
+  env: IntegrationEnv,
+): GoogleOAuthConfig | null {
+  const clientId = readEnvValue(env.GOOGLE_OAUTH_CLIENT_ID);
+  const clientSecret = readEnvValue(env.GOOGLE_OAUTH_CLIENT_SECRET);
+  const redirectUri = readEnvValue(env.GOOGLE_OAUTH_REDIRECT_URI);
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    return null;
+  }
+
+  return {
+    clientId,
+    clientSecret,
+    redirectUri,
+  };
+}
+
 export function getGmailAdapterConfig(
   env: IntegrationEnv,
 ): GmailAdapterConfig | null {
@@ -84,17 +147,9 @@ export function getGmailAdapterConfig(
     return null;
   }
 
-  const senderEmail = readEnvValue(env.OPERATOR_GMAIL_SENDER);
-
-  if (!senderEmail) {
-    throw new Error(
-      "OPERATOR_GMAIL_SENDER is required when GOOGLE_WORKSPACE_ACCESS_TOKEN is configured.",
-    );
-  }
-
   return {
     accessToken,
-    senderEmail,
+    senderEmail: getOperatorGmailSender(env),
   };
 }
 
@@ -147,6 +202,14 @@ export function getOpenClawAdapterConfig(
     draftPath: normalizePath(
       readEnvValue(env.OPENCLAW_DRAFT_PATH) ??
         "/api/operator/draft-recommendations",
+    ),
+    runtimeStatePath: normalizePath(
+      readEnvValue(env.OPENCLAW_RUNTIME_STATE_PATH) ??
+        "/api/operator/runtime/state",
+    ),
+    applyPolicyPath: normalizePath(
+      readEnvValue(env.OPENCLAW_APPLY_POLICY_PATH) ??
+        "/api/operator/runtime/policy",
     ),
   };
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { mapClerkRoleToTeamRole } from "@/lib/auth/clerk";
 import {
+  allowsImplicitWorkspaceProvisioning,
   assertApprovalMutationAccess,
   shouldAutoClaimSeedWorkspace,
 } from "@/lib/operator/datalayer/viewer-context";
@@ -48,6 +49,14 @@ describe("shouldAutoClaimSeedWorkspace", () => {
         realMembershipCount: 1,
       }),
     ).toBe(false);
+  });
+});
+
+describe("allowsImplicitWorkspaceProvisioning", () => {
+  it("keeps implicit workspace creation available in non-production only", () => {
+    expect(allowsImplicitWorkspaceProvisioning("development")).toBe(true);
+    expect(allowsImplicitWorkspaceProvisioning("test")).toBe(true);
+    expect(allowsImplicitWorkspaceProvisioning("production")).toBe(false);
   });
 });
 

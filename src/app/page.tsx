@@ -21,7 +21,7 @@ export default function Home() {
         <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-16 md:px-8 lg:grid-cols-[0.94fr_1.06fr] lg:py-24">
           <div className="section-fade space-y-8">
             <Badge className="bg-[color:rgba(24,59,78,0.08)] text-[color:var(--accent)]">
-              Premium closed alpha
+              Paid invoice recovery
             </Badge>
             <div className="space-y-5">
               <h1 className="headline-balance max-w-3xl font-serif text-5xl leading-[0.94] text-[color:var(--foreground)] sm:text-6xl lg:text-7xl">
@@ -30,14 +30,14 @@ export default function Home() {
               <p className="body-balance max-w-2xl text-lg leading-8 text-[color:var(--muted-foreground)]">
                 Operator is an AI operations system for small businesses that
                 identifies overdue cash, prepares follow-up drafts, routes them
-                for approval, and keeps every action visible across web, email,
-                and WhatsApp.
+                for approval, and keeps every action visible across the web app
+                and Gmail.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg">
                 <Link href="/join-alpha">
-                  Join Alpha <ArrowRight className="size-4" />
+                  Start Trial <ArrowRight className="size-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="secondary">
@@ -183,13 +183,13 @@ export default function Home() {
             <div>
               <p className="eyebrow text-white/60">Join the first operator circle</p>
               <h2 className="mt-3 max-w-3xl font-serif text-5xl text-white">
-                Get the first version that turns overdue cash recovery into a
+                Start the paid version that turns overdue cash recovery into a
                 disciplined operating loop.
               </h2>
               <p className="mt-5 max-w-2xl text-sm leading-7 text-white/72">
-                The alpha is for real small businesses, not generic AI sightseeing.
-                If the workflow matters to your business, you should see it in a
-                serious product surface from day one.
+                Operator is for real small businesses, not generic AI sightseeing.
+                If overdue cash matters to your business, the setup path should
+                lead straight into a serious product surface.
               </p>
             </div>
             <Button
@@ -197,7 +197,7 @@ export default function Home() {
               size="lg"
               className="bg-[color:var(--surface-elevated)] text-[color:var(--accent)] hover:bg-[color:var(--surface)]"
             >
-              <Link href="/join-alpha">Request access</Link>
+              <Link href="/join-alpha">Start setup</Link>
             </Button>
           </div>
         </Card>

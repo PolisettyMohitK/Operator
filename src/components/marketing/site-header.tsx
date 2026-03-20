@@ -17,7 +17,7 @@ export function SiteHeader() {
               Operator
             </div>
             <div className="text-xs uppercase tracking-[0.24em] text-[color:var(--muted-foreground)]">
-              Closed Alpha
+              Paid V1
             </div>
           </div>
         </Link>
@@ -40,7 +40,7 @@ export function SiteHeader() {
             <Link href="/sign-in">Sign In</Link>
           </Button>
           <Button asChild>
-            <Link href="/join-alpha">Join Alpha</Link>
+            <Link href="/join-alpha">Start Trial</Link>
           </Button>
         </div>
       </div>

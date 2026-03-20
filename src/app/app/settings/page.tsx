@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app/app-shell";
 import { saveWorkspaceSettings } from "@/app/actions/workspace-admin";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { materializeChannelPolicyDefaults } from "@/lib/operator/datalayer/workspace-admin";
@@ -95,14 +96,82 @@ export default async function SettingsPage() {
               ))}
             </div>
 
+            <div className="mt-6 rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted-foreground)]">
+                    Managed runtime
+                  </p>
+                  <h3 className="mt-2 text-lg font-semibold text-[color:var(--foreground)]">
+                    OpenClaw safety controls
+                  </h3>
+                </div>
+                <Badge>{settings.agentPolicy.runtimeStatus}</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-7 text-[color:var(--muted-foreground)]">
+                Customers never touch raw OpenClaw. These settings decide whether
+                Operator can send Gmail follow-ups, read Google Sheets, or pause all
+                managed execution with the workspace kill switch.
+              </p>
+              {settings.agentPolicy.lastError ? (
+                <p className="mt-3 rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] px-4 py-3 text-sm leading-6 text-[color:var(--foreground)]">
+                  {settings.agentPolicy.lastError}
+                </p>
+              ) : null}
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <label className="flex items-start gap-3 rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4 text-sm text-[color:var(--foreground)]">
+                  <input
+                    defaultChecked={settings.agentPolicy.gmailSendEnabled}
+                    disabled={!isOwner}
+                    name="agent:gmailSendEnabled"
+                    type="checkbox"
+                  />
+                  <span>
+                    <span className="block font-semibold">Allow Gmail sending</span>
+                    <span className="mt-1 block text-[color:var(--muted-foreground)]">
+                      Operator may send approved invoice follow-ups through Gmail.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4 text-sm text-[color:var(--foreground)]">
+                  <input
+                    defaultChecked={settings.agentPolicy.googleSheetsReadEnabled}
+                    disabled={!isOwner}
+                    name="agent:googleSheetsReadEnabled"
+                    type="checkbox"
+                  />
+                  <span>
+                    <span className="block font-semibold">Allow Google Sheets reads</span>
+                    <span className="mt-1 block text-[color:var(--muted-foreground)]">
+                      Operator may refresh invoice data from the mapped sheet.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4 text-sm text-[color:var(--foreground)]">
+                  <input
+                    defaultChecked={settings.agentPolicy.killSwitchEnabled}
+                    disabled={!isOwner}
+                    name="agent:killSwitchEnabled"
+                    type="checkbox"
+                  />
+                  <span>
+                    <span className="block font-semibold">Enable kill switch</span>
+                    <span className="mt-1 block text-[color:var(--muted-foreground)]">
+                      Immediately pause all OpenClaw-backed execution for this workspace.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--border)] pt-5">
               <p className="max-w-2xl text-sm leading-7 text-[color:var(--muted-foreground)]">
                 {isOwner
-                  ? "Saving here updates the live workspace policy. Queue copy, approval prompts, and dashboard guidance will all read from this source of truth."
+                  ? "Saving here updates the live workspace policy. Queue copy, approval prompts, provider permissions, and the managed runtime all read from this source of truth."
                   : "Only workspace owners can change delivery policy. Everyone else sees the current operating rules here."}
               </p>
               <Button disabled={!isOwner} type="submit">
-                Save workspace policy
+                Save and apply policy
               </Button>
             </div>
           </Card>

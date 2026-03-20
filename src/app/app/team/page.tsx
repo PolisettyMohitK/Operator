@@ -98,7 +98,7 @@ export default async function TeamPage() {
             </p>
             <p>
               Approvers can review and approve outbound messages, including
-              cross-channel actions from email and WhatsApp.
+              cross-channel actions from the dashboard and email alerts.
             </p>
             <p>
               {isOwner

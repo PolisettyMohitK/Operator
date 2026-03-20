@@ -1,4 +1,10 @@
-import { getGmailAdapterConfig, type GmailAdapterConfig } from "@/lib/operator/integrations/env";
+import { resolveConnectedAccountCredentials } from "@/lib/operator/credentials/resolver";
+import {
+  getCredentialEncryptionSecret,
+  getGmailAdapterConfig,
+  getOperatorGmailSender,
+  type GmailAdapterConfig,
+} from "@/lib/operator/integrations/env";
 
 export type GmailDraftPayload = Readonly<{
   subject: string;
@@ -17,7 +23,10 @@ export class GmailAdapterNotConfiguredError extends Error {
 }
 
 export class GmailSendDraftError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly retryable = false,
+  ) {
     super(message);
   }
 }
@@ -66,6 +75,7 @@ export class EnvBackedGmailAdapter implements GmailAdapter {
     if (!response.ok) {
       throw new GmailSendDraftError(
         `Gmail send failed with ${response.status}: ${await response.text()}`,
+        response.status >= 500 || response.status === 429,
       );
     }
 
@@ -100,4 +110,34 @@ export function getGmailAdapter(
   }
 
   return new EnvBackedGmailAdapter(config, fetchImpl);
+}
+
+export async function getGmailAdapterForOrganization(
+  input: Readonly<{
+    organizationId: string;
+    env?: Readonly<Record<string, string | undefined>>;
+    fetchImpl?: typeof fetch;
+  }>,
+) {
+  const env = input.env ?? process.env;
+  const encryptionSecret = getCredentialEncryptionSecret(env);
+  const credentials = await resolveConnectedAccountCredentials({
+    encryptionSecret,
+    organizationId: input.organizationId,
+    provider: "gmail",
+  });
+
+  if (!credentials?.accessToken) {
+    throw new GmailAdapterNotConfiguredError();
+  }
+
+  const senderEmail = credentials.externalAccountLabel || getOperatorGmailSender(env);
+
+  return new EnvBackedGmailAdapter(
+    {
+      accessToken: credentials.accessToken,
+      senderEmail,
+    },
+    input.fetchImpl ?? fetch,
+  );
 }

@@ -71,7 +71,7 @@ export function HeroConsolePreview() {
                         {item.clientName}
                       </p>
                       <p className="text-sm text-[color:var(--muted-foreground)]">
-                        {item.invoiceId} · ${item.amountDue.toLocaleString()}
+                        {item.invoiceId} | ${item.amountDue.toLocaleString()}
                       </p>
                     </div>
                     <Badge
@@ -114,8 +114,8 @@ export function HeroConsolePreview() {
                   </span>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-[color:var(--muted-foreground)]">
-                  Every approval path is signed and logged across web, email, and
-                  WhatsApp.
+                  Every approval path is signed and logged across the dashboard,
+                  email alerts, and Gmail delivery.
                 </p>
               </div>
               <div className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4">
@@ -126,7 +126,7 @@ export function HeroConsolePreview() {
                   </span>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-[color:var(--muted-foreground)]">
-                  Email and WhatsApp stay in lockstep with the canonical queue.
+                  Email alerts stay in lockstep with the canonical queue.
                 </p>
               </div>
             </div>

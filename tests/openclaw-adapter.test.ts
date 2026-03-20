@@ -25,8 +25,10 @@ describe("EnvBackedOpenClawAdapter", () => {
     const adapter = new EnvBackedOpenClawAdapter(
       {
         apiToken: "secret",
+        applyPolicyPath: "/worker/runtime/policy",
         baseUrl: "https://openclaw.example.com",
         draftPath: "/worker/drafts",
+        runtimeStatePath: "/worker/runtime/state",
       },
       fetchImpl,
     );
@@ -52,8 +54,10 @@ describe("EnvBackedOpenClawAdapter", () => {
     const adapter = new EnvBackedOpenClawAdapter(
       {
         apiToken: "secret",
+        applyPolicyPath: "/worker/runtime/policy",
         baseUrl: "https://openclaw.example.com",
         draftPath: "/worker/drafts",
+        runtimeStatePath: "/worker/runtime/state",
       },
       fetchImpl,
     );

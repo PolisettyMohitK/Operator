@@ -8,6 +8,7 @@ import {
   DEFAULT_REMINDER_POLICY,
   materializeChannelPolicyDefaults,
   parseChannelPolicyFormData,
+  parseManagedPolicyFormData,
   parseReminderPolicyFormData,
   saveWorkspacePolicy,
   updateMemberApprovalDelegation,
@@ -61,9 +62,11 @@ export async function saveWorkspaceSettings(formData: FormData) {
   await saveWorkspacePolicy({
     actorMembershipId: viewerContext.membershipId,
     channelPolicies: parseChannelPolicyFormData(formData),
+    ...parseManagedPolicyFormData(formData),
     organizationId: viewerContext.organizationId,
     reminderPolicy: onboardingState.reminderPolicy ?? DEFAULT_REMINDER_POLICY,
     toneGuidance: String(formData.get("toneGuidance") ?? ""),
+    workspaceLabel: viewerContext.workspaceLabel,
   });
 
   revalidateWorkspaceAdminSurfaces();
@@ -83,9 +86,13 @@ export async function saveReminderCadence(formData: FormData) {
   await saveWorkspacePolicy({
     actorMembershipId: viewerContext.membershipId,
     channelPolicies: materializeChannelPolicyDefaults(settings.channelStates),
+    gmailSendEnabled: settings.agentPolicy.gmailSendEnabled,
+    googleSheetsReadEnabled: settings.agentPolicy.googleSheetsReadEnabled,
+    killSwitchEnabled: settings.agentPolicy.killSwitchEnabled,
     organizationId: viewerContext.organizationId,
     reminderPolicy: parseReminderPolicyFormData(formData),
     toneGuidance: settings.toneGuidance || viewerContext.toneGuidance,
+    workspaceLabel: viewerContext.workspaceLabel,
   });
 
   revalidateWorkspaceAdminSurfaces();

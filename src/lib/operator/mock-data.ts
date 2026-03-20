@@ -5,7 +5,7 @@ import type {
 } from "@/lib/operator/domain/approval-policy";
 
 export const workspace = {
-  name: "Operator Closed Alpha",
+  name: "Operator Paid V1",
   businessName: "Northline Advisory",
   businessType: "Fractional operations consultancy",
   owner: "Aarav Kulkarni",
@@ -64,14 +64,14 @@ export const approvalItems: (ApprovalItem & {
     id: "approval_202",
     invoiceId: "INV-202",
     status: "edited",
-    channel: "whatsapp",
+    channel: "email",
     clientName: "Harbor & Finch",
     amountDue: 950,
     risk: "watch",
-    reason: "4 days overdue. Client prefers WhatsApp reminders over email.",
+    reason: "4 days overdue. Client replied to the last email but payment timing is still unclear.",
     preview:
-      "Hello Sam, a quick note that invoice INV-202 is now overdue. Please let me know if you need the invoice resent or if payment is already in motion.",
-    channelLabel: "WhatsApp",
+      "Hello Sam, a quick note that invoice INV-202 is now overdue. Please let me know if payment is already in motion or if you need the invoice resent today.",
+    channelLabel: "Gmail",
   },
   {
     id: "approval_203",
@@ -105,7 +105,7 @@ export const invoices = [
     dueDate: "2026-03-15",
     amountDue: 950,
     status: "Needs approval",
-    channel: "WhatsApp",
+    channel: "Email",
     owner: "Rhea",
     lastFollowUpAt: "Mar 17",
   },
@@ -115,7 +115,7 @@ export const invoices = [
     dueDate: "2026-03-06",
     amountDue: 3200,
     status: "Overdue",
-    channel: "Email + WhatsApp",
+    channel: "Email + Web",
     owner: "Aarav",
     lastFollowUpAt: "Mar 08",
   },
@@ -142,9 +142,9 @@ export const clients = [
   {
     name: "Harbor & Finch",
     contact: "Sam Cole",
-    lastTouchpoint: "Responded via WhatsApp yesterday",
+    lastTouchpoint: "Replied to the latest reminder yesterday",
     balance: "$950",
-    sentiment: "Prefers concise mobile follow-ups",
+    sentiment: "Prefers concise follow-ups with invoice details included",
   },
   {
     name: "Aster Lane",
@@ -158,9 +158,9 @@ export const clients = [
 export const activityFeed = [
   {
     title: "Draft approved and sent",
-    detail: "Rhea approved INV-202 through WhatsApp. Operator synced the status to the queue.",
+    detail: "Rhea approved INV-202 through Gmail. Operator synced the status to the queue.",
     timestamp: "09:14",
-    channel: "WhatsApp",
+    channel: "Email",
   },
   {
     title: "Queue item escalated",
@@ -206,11 +206,6 @@ export const integrations = [
     detail: "Invoice workbook mapped to Operator normalized schema",
   },
   {
-    name: "WhatsApp",
-    status: "Pending setup",
-    detail: "Actionable notifications available once Business API credentials are supplied",
-  },
-  {
     name: "OpenClaw Worker",
     status: "Configured",
     detail: "Scoped worker adapter available for draft generation and rationale",
@@ -233,7 +228,7 @@ export const onboardingSteps = [
 ] as const;
 
 export const channelMatrix: {
-  channel: ApprovalChannel | "web";
+  channel: Extract<ApprovalChannel, "email"> | "web";
   state: string;
   note: string;
 }[] = [
@@ -246,10 +241,5 @@ export const channelMatrix: {
     channel: "email",
     state: "Active",
     note: "Pending approvals are summarized with signed action links and deep-links back into the queue.",
-  },
-  {
-    channel: "whatsapp",
-    state: "Action surface",
-    note: "Approvers can accept or reject quickly, then fall back to the dashboard for richer edits.",
   },
 ];

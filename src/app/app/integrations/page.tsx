@@ -1,21 +1,40 @@
 import { AppShell } from "@/components/app/app-shell";
+import { WorkspaceStatusCard } from "@/components/app/workspace-status-card";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { requireViewerContext } from "@/lib/operator/datalayer/viewer-context";
-import { listToolConnections } from "@/lib/operator/db/queries";
+import {
+  getWorkspaceHealthCards,
+  listToolConnections,
+} from "@/lib/operator/db/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function IntegrationsPage() {
   const viewerContext = await requireViewerContext();
-  const integrations = await listToolConnections(viewerContext.organizationId);
+  const [integrations, healthCards] = await Promise.all([
+    listToolConnections(viewerContext.organizationId),
+    getWorkspaceHealthCards(viewerContext.organizationId),
+  ]);
 
   return (
     <AppShell
       activeHref="/app/integrations"
       title="Integrations"
-      description="The first alpha stays intentionally narrow: Gmail, Google Sheets, WhatsApp, and the constrained OpenClaw worker boundary."
+      description="Paid V1 stays intentionally narrow: Gmail, Google Sheets, and the managed OpenClaw runtime that powers invoice recovery without exposing raw agent infrastructure."
     >
+      <div className="space-y-5">
+        {healthCards.length > 0 ? (
+          <div className="grid gap-4">
+            {healthCards.map((card) => (
+              <WorkspaceStatusCard
+                key={`${card.subject}-${card.state}`}
+                card={card}
+              />
+            ))}
+          </div>
+        ) : null}
+
       {integrations.length === 0 ? (
         <Card className="p-6">
           <p className="eyebrow">Integrations</p>
@@ -23,8 +42,8 @@ export default async function IntegrationsPage() {
             No provider connections are stored yet
           </h2>
           <p className="mt-4 text-sm leading-7 text-[color:var(--muted-foreground)]">
-            As Gmail, Google Sheets, WhatsApp, and OpenClaw credentials are saved,
-            the workspace connection state will appear here.
+            Connect Gmail and Google Sheets to activate invoice monitoring,
+            draft preparation, and outbound follow-up delivery.
           </p>
         </Card>
       ) : (
@@ -40,10 +59,19 @@ export default async function IntegrationsPage() {
               <p className="mt-4 text-sm leading-7 text-[color:var(--muted-foreground)]">
                 {integration.detail}
               </p>
+              <p className="mt-5 text-xs uppercase tracking-[0.22em] text-[color:var(--muted-foreground)]">
+                State: {integration.state.replace(/_/g, " ")}
+              </p>
+              {integration.lastSuccessfulEventLabel ? (
+                <p className="mt-2 text-sm text-[color:var(--muted-foreground)]">
+                  Last successful event: {integration.lastSuccessfulEventLabel}
+                </p>
+              ) : null}
             </Card>
           ))}
         </div>
       )}
+      </div>
     </AppShell>
   );
 }

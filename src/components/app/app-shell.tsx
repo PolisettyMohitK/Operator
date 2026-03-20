@@ -5,19 +5,24 @@ import {
   Activity,
   BellRing,
   Cable,
+  CreditCard,
   LayoutDashboard,
   NotebookText,
+  Shield,
   Settings2,
   Users,
   WalletCards,
+  UserCircle2,
 } from "lucide-react";
 
 import { hasClerkPublishableKey } from "@/lib/auth/clerk";
 import { getViewerContext } from "@/lib/operator/datalayer/viewer-context";
+import { getOpsUserIds } from "@/lib/operator/integrations/env";
+import { canAccessOpsSurface } from "@/lib/operator/ops/access";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 
-const appNavigation = [
+const primaryNavigation = [
   { href: "/app", label: "Overview", icon: LayoutDashboard },
   { href: "/app/queue", label: "Approval Queue", icon: BellRing },
   { href: "/app/invoices", label: "Invoices", icon: WalletCards },
@@ -26,6 +31,11 @@ const appNavigation = [
   { href: "/app/team", label: "Team & Permissions", icon: Users },
   { href: "/app/integrations", label: "Integrations", icon: Cable },
   { href: "/app/settings", label: "Settings", icon: Settings2 },
+];
+
+const accountNavigation = [
+  { href: "/app/billing", label: "Billing", icon: CreditCard },
+  { href: "/app/account", label: "Account", icon: UserCircle2 },
 ];
 
 type AppShellProps = Readonly<{
@@ -44,6 +54,14 @@ export async function AppShell({
   const showClerkControls = hasClerkPublishableKey(process.env);
   const viewerContext = await getViewerContext();
   const businessName = viewerContext?.businessName ?? "Operator Workspace";
+  const showOpsSurface = viewerContext
+    ? canAccessOpsSurface({
+        viewerRole: viewerContext.role,
+        viewerUserId: viewerContext.userId,
+        opsUserIds: getOpsUserIds(process.env),
+        nodeEnv: process.env.NODE_ENV,
+      })
+    : false;
 
   return (
     <div className="min-h-screen bg-[color:var(--surface-muted)]">
@@ -62,7 +80,7 @@ export async function AppShell({
             </div>
 
             <nav className="mt-6 space-y-1">
-              {appNavigation.map((item) => {
+              {primaryNavigation.map((item) => {
                 const Icon = item.icon;
 
                 return (
@@ -82,6 +100,47 @@ export async function AppShell({
                 );
               })}
             </nav>
+
+            <div className="mt-6 border-t border-[color:var(--border)] pt-6">
+              <p className="px-4 text-xs uppercase tracking-[0.22em] text-[color:var(--muted-foreground)]">
+                Workspace
+              </p>
+              <nav className="mt-3 space-y-1">
+                {accountNavigation.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 rounded-[18px] px-4 py-3 text-sm font-medium transition",
+                        item.href === activeHref
+                          ? "bg-[color:rgba(24,59,78,0.08)] text-[color:var(--accent)]"
+                          : "text-[color:var(--muted-foreground)] hover:bg-[color:var(--surface-elevated)] hover:text-[color:var(--foreground)]",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+                {showOpsSurface ? (
+                  <Link
+                    href="/ops"
+                    className={cn(
+                      "flex items-center gap-3 rounded-[18px] px-4 py-3 text-sm font-medium transition",
+                      activeHref === "/ops"
+                        ? "bg-[color:rgba(24,59,78,0.08)] text-[color:var(--accent)]"
+                        : "text-[color:var(--muted-foreground)] hover:bg-[color:var(--surface-elevated)] hover:text-[color:var(--foreground)]",
+                    )}
+                  >
+                    <Shield className="size-4" />
+                    Ops
+                  </Link>
+                ) : null}
+              </nav>
+            </div>
           </div>
         </aside>
 

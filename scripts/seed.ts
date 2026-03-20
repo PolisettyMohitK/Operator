@@ -11,20 +11,33 @@ import {
   teamMembers,
   workspace,
 } from "../src/lib/operator/mock-data";
+import {
+  encryptCredentialEnvelope,
+  serializeProviderCredentialPayload,
+} from "../src/lib/operator/credentials/store";
 import { getDb } from "../src/lib/operator/db/client";
 import {
   activityLogs,
+  accountTokens,
+  agentPolicies,
   approvalItems,
   channelStates,
   clients,
+  connectedAccounts,
+  featureGates,
   invoices,
   memberships,
   memoryProfiles,
   onboardingCheckpoints,
   organizations,
+  policySnapshots,
   sheetMappings,
+  subscriptions,
+  syncRuns,
   toolConnections,
 } from "../src/lib/operator/db/schema";
+import { getCredentialEncryptionSecret } from "../src/lib/operator/integrations/env";
+import { createDefaultAgentPolicy } from "../src/lib/operator/policy/defaults";
 
 loadEnvConfig(process.cwd());
 
@@ -40,6 +53,7 @@ function requireDb() {
 
 const organizationId = "org_northline_advisory";
 const organizationCreatedAt = new Date("2026-03-19T06:00:00Z");
+const encryptionSecret = getCredentialEncryptionSecret(process.env);
 
 function slugify(value: string) {
   return value
@@ -77,6 +91,8 @@ async function seed() {
       businessType: workspace.businessType,
       ownerName: workspace.owner,
       toneGuidance: workspace.tone,
+      status: "active",
+      activatedAt: organizationCreatedAt,
       createdAt: organizationCreatedAt,
     })
     .onConflictDoUpdate({
@@ -88,6 +104,8 @@ async function seed() {
         businessType: workspace.businessType,
         ownerName: workspace.owner,
         toneGuidance: workspace.tone,
+        status: "active",
+        activatedAt: organizationCreatedAt,
       },
     });
 
@@ -331,6 +349,264 @@ async function seed() {
       });
   }
 
+  const connectedAccountFixtures = [
+    {
+      id: "connected_gmail_org_northline",
+      provider: "gmail" as const,
+      externalAccountId: "google-owner-account",
+      externalAccountLabel: "hello@northlineadvisory.com",
+      scopes: ["gmail.send"],
+    },
+    {
+      id: "connected_sheets_org_northline",
+      provider: "google_sheets" as const,
+      externalAccountId: "google-owner-account",
+      externalAccountLabel: "hello@northlineadvisory.com",
+      scopes: ["spreadsheets.readonly"],
+    },
+  ];
+
+  for (const account of connectedAccountFixtures) {
+    await db
+      .insert(connectedAccounts)
+      .values({
+        id: account.id,
+        organizationId,
+        provider: account.provider,
+        externalAccountId: account.externalAccountId,
+        externalAccountLabel: account.externalAccountLabel,
+        status: "connected",
+        grantedScopes: account.scopes,
+        reconnectReason: null,
+        lastSuccessfulSyncAt: organizationCreatedAt,
+        lastSyncState: "succeeded",
+        metadata: {
+          seeded: true,
+        },
+        createdAt: organizationCreatedAt,
+        updatedAt: organizationCreatedAt,
+      })
+      .onConflictDoUpdate({
+        target: connectedAccounts.id,
+        set: {
+          externalAccountLabel: account.externalAccountLabel,
+          status: "connected",
+          grantedScopes: account.scopes,
+          reconnectReason: null,
+          lastSuccessfulSyncAt: organizationCreatedAt,
+          lastSyncState: "succeeded",
+          metadata: {
+            seeded: true,
+          },
+          updatedAt: organizationCreatedAt,
+        },
+      });
+
+    await db
+      .insert(accountTokens)
+      .values({
+        id: `token_${account.id}`,
+        organizationId,
+        connectedAccountId: account.id,
+        encryptedPayload: encryptCredentialEnvelope(
+          serializeProviderCredentialPayload({
+            accessToken: `${account.provider}_seed_access_token`,
+            refreshToken: `${account.provider}_seed_refresh_token`,
+            scopes: account.scopes,
+            tokenType: "Bearer",
+          }),
+          encryptionSecret,
+        ),
+        expiresAt: new Date("2026-04-19T06:00:00Z"),
+        refreshedAt: organizationCreatedAt,
+        createdAt: organizationCreatedAt,
+        updatedAt: organizationCreatedAt,
+      })
+      .onConflictDoUpdate({
+        target: accountTokens.id,
+        set: {
+          encryptedPayload: encryptCredentialEnvelope(
+            serializeProviderCredentialPayload({
+              accessToken: `${account.provider}_seed_access_token`,
+              refreshToken: `${account.provider}_seed_refresh_token`,
+              scopes: account.scopes,
+              tokenType: "Bearer",
+            }),
+            encryptionSecret,
+          ),
+          expiresAt: new Date("2026-04-19T06:00:00Z"),
+          refreshedAt: organizationCreatedAt,
+          updatedAt: organizationCreatedAt,
+        },
+      });
+  }
+
+  const defaultAgentPolicy = createDefaultAgentPolicy({
+    toneGuidance: workspace.tone,
+    workspaceLabel: workspace.businessName,
+  });
+
+  await db
+    .insert(agentPolicies)
+    .values({
+      id: `policy_${organizationId}`,
+      organizationId,
+      desiredPolicyVersion: 1,
+      desiredPolicyHash: "seed_policy_v1",
+      desiredPolicy: defaultAgentPolicy,
+      runtimeStatus: "healthy",
+      runtimeSummary: {
+        deliveryChannels: {
+          email: true,
+          web: true,
+        },
+        executionPolicy: "require-approval",
+        toolPermissions: {
+          gmailSend: true,
+          googleSheetsRead: true,
+        },
+        workspaceLabel: workspace.businessName,
+      },
+      lastObservedRuntime: {
+        deliveryChannels: {
+          email: true,
+          web: true,
+        },
+        executionPolicy: "require-approval",
+        toolPermissions: {
+          gmailSend: true,
+          googleSheetsRead: true,
+        },
+        workspaceLabel: workspace.businessName,
+      },
+      lastObservedAt: organizationCreatedAt,
+      lastSyncedAt: organizationCreatedAt,
+      lastError: null,
+      createdAt: organizationCreatedAt,
+      updatedAt: organizationCreatedAt,
+    })
+    .onConflictDoUpdate({
+      target: agentPolicies.id,
+      set: {
+        desiredPolicyVersion: 1,
+        desiredPolicyHash: "seed_policy_v1",
+        desiredPolicy: defaultAgentPolicy,
+        runtimeStatus: "healthy",
+        runtimeSummary: {
+          deliveryChannels: {
+            email: true,
+            web: true,
+          },
+          executionPolicy: "require-approval",
+          toolPermissions: {
+            gmailSend: true,
+            googleSheetsRead: true,
+          },
+          workspaceLabel: workspace.businessName,
+        },
+        lastObservedRuntime: {
+          deliveryChannels: {
+            email: true,
+            web: true,
+          },
+          executionPolicy: "require-approval",
+          toolPermissions: {
+            gmailSend: true,
+            googleSheetsRead: true,
+          },
+          workspaceLabel: workspace.businessName,
+        },
+        lastObservedAt: organizationCreatedAt,
+        lastSyncedAt: organizationCreatedAt,
+        lastError: null,
+        updatedAt: organizationCreatedAt,
+      },
+    });
+
+  await db
+    .insert(policySnapshots)
+    .values({
+      id: `policy_snapshot_${organizationId}`,
+      organizationId,
+      actorMembershipId: "owner_1",
+      policyVersion: 1,
+      changeSummary: [],
+      fullPolicy: defaultAgentPolicy,
+      createdAt: organizationCreatedAt,
+    })
+    .onConflictDoUpdate({
+      target: policySnapshots.id,
+      set: {
+        actorMembershipId: "owner_1",
+        policyVersion: 1,
+        changeSummary: [],
+        fullPolicy: defaultAgentPolicy,
+        createdAt: organizationCreatedAt,
+      },
+    });
+
+  await db
+    .insert(subscriptions)
+    .values({
+      id: `subscription_${organizationId}`,
+      organizationId,
+      plan: "trial",
+      status: "trialing",
+      providerCustomerId: "cus_seed_northline",
+      providerSubscriptionId: null,
+      trialEndsAt: new Date("2026-04-02T06:00:00Z"),
+      currentPeriodEndsAt: new Date("2026-04-02T06:00:00Z"),
+      createdAt: organizationCreatedAt,
+      updatedAt: organizationCreatedAt,
+    })
+    .onConflictDoUpdate({
+      target: subscriptions.id,
+      set: {
+        plan: "trial",
+        status: "trialing",
+        providerCustomerId: "cus_seed_northline",
+        providerSubscriptionId: null,
+        trialEndsAt: new Date("2026-04-02T06:00:00Z"),
+        currentPeriodEndsAt: new Date("2026-04-02T06:00:00Z"),
+        updatedAt: organizationCreatedAt,
+      },
+    });
+
+  for (const gate of [
+    {
+      id: `feature_gate_${organizationId}_invoice_recovery`,
+      key: "invoice_recovery",
+      enabled: true,
+      reason: "Paid V1 default workflow",
+    },
+    {
+      id: `feature_gate_${organizationId}_advanced_runtime`,
+      key: "advanced_runtime",
+      enabled: false,
+      reason: "Roadmap flagged for post-launch",
+    },
+  ]) {
+    await db
+      .insert(featureGates)
+      .values({
+        id: gate.id,
+        organizationId,
+        key: gate.key,
+        enabled: gate.enabled,
+        reason: gate.reason,
+        createdAt: organizationCreatedAt,
+        updatedAt: organizationCreatedAt,
+      })
+      .onConflictDoUpdate({
+        target: featureGates.id,
+        set: {
+          enabled: gate.enabled,
+          reason: gate.reason,
+          updatedAt: organizationCreatedAt,
+        },
+      });
+  }
+
   for (const [index, event] of activityFeed.entries()) {
     await db
       .insert(activityLogs)
@@ -358,6 +634,53 @@ async function seed() {
             timeLabel: event.timestamp,
           },
           createdAt: parseTimeLabel(event.timestamp),
+        },
+      });
+  }
+
+  for (const syncRun of [
+    {
+      id: `sync_${organizationId}_invoice`,
+      connectedAccountId: "connected_sheets_org_northline",
+      kind: "invoice_sync",
+      status: "succeeded" as const,
+      detail: "Invoice sync completed successfully.",
+    },
+    {
+      id: `sync_${organizationId}_policy`,
+      connectedAccountId: null,
+      kind: "policy_reconcile",
+      status: "succeeded" as const,
+      detail: "OpenClaw policy reconcile completed successfully.",
+    },
+  ]) {
+    await db
+      .insert(syncRuns)
+      .values({
+        id: syncRun.id,
+        organizationId,
+        connectedAccountId: syncRun.connectedAccountId,
+        kind: syncRun.kind,
+        status: syncRun.status,
+        detail: syncRun.detail,
+        retryCount: 0,
+        metadata: {
+          seeded: true,
+        },
+        startedAt: organizationCreatedAt,
+        finishedAt: organizationCreatedAt,
+      })
+      .onConflictDoUpdate({
+        target: syncRuns.id,
+        set: {
+          status: syncRun.status,
+          detail: syncRun.detail,
+          retryCount: 0,
+          metadata: {
+            seeded: true,
+          },
+          startedAt: organizationCreatedAt,
+          finishedAt: organizationCreatedAt,
         },
       });
   }

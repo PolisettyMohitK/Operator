@@ -21,7 +21,7 @@ export default function SignInPage() {
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Button asChild className="sm:flex-1">
-              <Link href="/join-alpha">Request alpha access</Link>
+              <Link href="/join-alpha">Start setup</Link>
             </Button>
             <Button asChild variant="secondary" className="sm:flex-1">
               <Link href="/">Back to site</Link>

@@ -44,6 +44,8 @@ describe("isProtectedAppPath", () => {
     expect(isProtectedAppPath("/app")).toBe(true);
     expect(isProtectedAppPath("/app/queue")).toBe(true);
     expect(isProtectedAppPath("/app/settings/team")).toBe(true);
+    expect(isProtectedAppPath("/ops")).toBe(true);
+    expect(isProtectedAppPath("/ops/incidents")).toBe(true);
   });
 
   it("leaves marketing and auth routes public", () => {

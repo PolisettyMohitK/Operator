@@ -11,7 +11,12 @@ export function hasClerkServerCredentials(env: ClerkEnv) {
 }
 
 export function isProtectedAppPath(pathname: string) {
-  return pathname === "/app" || pathname.startsWith("/app/");
+  return (
+    pathname === "/app" ||
+    pathname.startsWith("/app/") ||
+    pathname === "/ops" ||
+    pathname.startsWith("/ops/")
+  );
 }
 
 export function mapClerkRoleToTeamRole(clerkRole?: string | null): TeamRole {

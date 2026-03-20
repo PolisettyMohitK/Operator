@@ -1,9 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getDbMock = vi.fn();
+const persistWorkspaceAgentPolicyMock = vi.fn();
+const getOpenClawRuntimeClientMock = vi.fn();
+const createUnavailableRuntimeClientMock = vi.fn(() => ({
+  applyPolicy: vi.fn(),
+  fetchRuntimeState: vi.fn(),
+}));
 
 vi.mock("@/lib/operator/db/client", () => ({
   getDb: getDbMock,
+}));
+
+vi.mock("@/lib/operator/policy/service", () => ({
+  persistWorkspaceAgentPolicy: persistWorkspaceAgentPolicyMock,
+}));
+
+vi.mock("@/lib/operator/runtime/openclaw-runtime-client", () => ({
+  getOpenClawRuntimeClient: getOpenClawRuntimeClientMock,
+}));
+
+vi.mock("@/lib/operator/runtime/runtime-manager", () => ({
+  createUnavailableRuntimeClient: createUnavailableRuntimeClientMock,
 }));
 
 function createSelectChain<T>(rows: T[]) {
@@ -123,11 +141,6 @@ describe("channel policy helpers", () => {
         note: "Email approvals",
         state: "Active",
       },
-      {
-        channel: "whatsapp",
-        note: expect.any(String),
-        state: "Action surface",
-      },
     ]);
   });
 
@@ -140,11 +153,6 @@ describe("channel policy helpers", () => {
     formData.set("channel:web:note", "Web is the canonical queue.");
     formData.set("channel:email:state", "Active");
     formData.set("channel:email:note", "Email is used for signatures.");
-    formData.set("channel:whatsapp:state", "Action surface");
-    formData.set(
-      "channel:whatsapp:note",
-      "WhatsApp is reserved for fast approvals.",
-    );
 
     expect(parseChannelPolicyFormData(formData)).toEqual([
       {
@@ -157,11 +165,6 @@ describe("channel policy helpers", () => {
         note: "Email is used for signatures.",
         state: "Active",
       },
-      {
-        channel: "whatsapp",
-        note: "WhatsApp is reserved for fast approvals.",
-        state: "Action surface",
-      },
     ]);
   });
 });
@@ -170,6 +173,7 @@ describe("updateMemberApprovalDelegation", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    getOpenClawRuntimeClientMock.mockReturnValue(null);
   });
 
   it("updates a staff member's approval delegation and logs the change", async () => {
@@ -243,6 +247,7 @@ describe("saveWorkspacePolicy", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    getOpenClawRuntimeClientMock.mockReturnValue(null);
   });
 
   it("persists tone guidance, reminder cadence, and channel policy in one transaction", async () => {
@@ -281,7 +286,8 @@ describe("saveWorkspacePolicy", () => {
         .fn()
         .mockReturnValueOnce(actorMembershipRows)
         .mockReturnValueOnce(memoryProfileRows)
-        .mockReturnValueOnce(channelStateRows),
+        .mockReturnValueOnce(channelStateRows)
+        .mockReturnValueOnce(createSelectChain([])),
       update: vi
         .fn()
         .mockReturnValueOnce(updateOrganizations)
@@ -289,7 +295,6 @@ describe("saveWorkspacePolicy", () => {
         .mockReturnValue(updateChannels),
       insert: vi
         .fn()
-        .mockReturnValueOnce(insertChannel)
         .mockReturnValueOnce(insertChannel)
         .mockReturnValueOnce(insertActivity),
     };
@@ -317,12 +322,11 @@ describe("saveWorkspacePolicy", () => {
           note: "Email is used for approvals.",
           state: "Active",
         },
-        {
-          channel: "whatsapp",
-          note: "WhatsApp is fast-path only.",
-          state: "Action surface",
-        },
       ],
+      gmailSendEnabled: true,
+      googleSheetsReadEnabled: true,
+      killSwitchEnabled: false,
+      workspaceLabel: "Northline Advisory",
       organizationId: "org_1",
       reminderPolicy: {
         minimumSpacingDays: 3,
@@ -344,13 +348,31 @@ describe("saveWorkspacePolicy", () => {
       },
       updatedAt: expect.any(Date),
     });
-    expect(insertChannel.values).toHaveBeenCalledTimes(2);
+    expect(insertChannel.values).toHaveBeenCalledTimes(1);
     expect(insertActivity.values).toHaveBeenCalledWith(
       expect.objectContaining({
         actorMembershipId: "membership_owner",
         organizationId: "org_1",
         subjectType: "workspace_policy",
         title: "Workspace policy updated",
+      }),
+    );
+    expect(persistWorkspaceAgentPolicyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorMembershipId: "membership_owner",
+        organizationId: "org_1",
+        policy: expect.objectContaining({
+          tools: {
+            gmailSend: true,
+            googleSheetsRead: true,
+          },
+          automation: {
+            killSwitch: false,
+            paused: false,
+          },
+          workspaceLabel: "Northline Advisory",
+        }),
+        tx,
       }),
     );
   });

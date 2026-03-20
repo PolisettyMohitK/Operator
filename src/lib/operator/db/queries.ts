@@ -4,17 +4,28 @@ import { format } from "date-fns";
 import { getDb } from "@/lib/operator/db/client";
 import {
   activityLogs,
+  agentPolicies,
   approvalItems,
   channelStates,
   clients,
+  connectedAccounts,
+  deliveryAttempts,
   invoices,
   memberships,
   memoryProfiles,
   onboardingCheckpoints,
   organizations,
   sheetMappings,
+  subscriptions,
+  syncRuns,
   toolConnections,
 } from "@/lib/operator/db/schema";
+import {
+  buildDeliveryFailureState,
+  buildOpenClawRuntimeState,
+  buildSyncStalledState,
+  type WorkspaceStatusCard,
+} from "@/lib/operator/health/status";
 import {
   formatActivityTimestamp,
   formatCompactUsdAmount,
@@ -76,8 +87,10 @@ export type ClientDisplayRow = {
 export type IntegrationDisplayRow = {
   id: string;
   name: string;
+  state: "healthy" | "attention_needed" | "degraded" | "paused";
   status: string;
   detail: string;
+  lastSuccessfulEventLabel: string | null;
 };
 
 export type TeamMemberDisplayRow = {
@@ -88,7 +101,7 @@ export type TeamMemberDisplayRow = {
 };
 
 export type ChannelStateDisplayRow = {
-  channel: "web" | "email" | "whatsapp";
+  channel: "web" | "email";
   state: string;
   note: string;
 };
@@ -96,6 +109,13 @@ export type ChannelStateDisplayRow = {
 export type SettingsDisplayState = {
   toneGuidance: string;
   channelStates: ChannelStateDisplayRow[];
+  agentPolicy: {
+    gmailSendEnabled: boolean;
+    googleSheetsReadEnabled: boolean;
+    killSwitchEnabled: boolean;
+    runtimeStatus: string;
+    lastError: string | null;
+  };
 };
 
 export type OnboardingStepDisplayRow = {
@@ -119,6 +139,21 @@ export type OnboardingDisplayState = {
   connectedToolCount: number;
 };
 
+export type BillingDisplayState = {
+  plan: string;
+  status: string;
+  trialEndsAt: string | null;
+  currentPeriodEndsAt: string | null;
+};
+
+export type AccountDisplayState = {
+  workspaceLabel: string;
+  businessName: string;
+  workspaceStatus: string;
+  ownerName: string;
+  createdAt: string;
+};
+
 function titleCase(value: string) {
   return value
     .split(/[_\s-]+/)
@@ -129,6 +164,10 @@ function titleCase(value: string) {
 
 function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return count === 1 ? singular : plural;
+}
+
+function formatTimestampOrNull(value: Date | null | undefined) {
+  return value ? format(value, "MMM dd, HH:mm") : null;
 }
 
 export async function listQueueItems(
@@ -451,18 +490,241 @@ export async function listToolConnections(
     return [];
   }
 
-  const rows = await db
-    .select({
-      id: toolConnections.id,
-      name: toolConnections.provider,
-      status: toolConnections.status,
-      detail: toolConnections.detail,
-    })
-    .from(toolConnections)
-    .where(eq(toolConnections.organizationId, organizationId))
-    .orderBy(asc(toolConnections.provider));
+  const [accountRows, [policyRow], legacyRows] = await Promise.all([
+    db
+      .select({
+        id: connectedAccounts.id,
+        provider: connectedAccounts.provider,
+        status: connectedAccounts.status,
+        externalAccountLabel: connectedAccounts.externalAccountLabel,
+        reconnectReason: connectedAccounts.reconnectReason,
+        lastSuccessfulSyncAt: connectedAccounts.lastSuccessfulSyncAt,
+      })
+      .from(connectedAccounts)
+      .where(eq(connectedAccounts.organizationId, organizationId))
+      .orderBy(asc(connectedAccounts.provider)),
+    db
+      .select({
+        runtimeStatus: agentPolicies.runtimeStatus,
+        lastObservedAt: agentPolicies.lastObservedAt,
+        lastError: agentPolicies.lastError,
+      })
+      .from(agentPolicies)
+      .where(eq(agentPolicies.organizationId, organizationId))
+      .limit(1),
+    db
+      .select({
+        id: toolConnections.id,
+        name: toolConnections.provider,
+        status: toolConnections.status,
+        detail: toolConnections.detail,
+      })
+      .from(toolConnections)
+      .where(eq(toolConnections.organizationId, organizationId))
+      .orderBy(asc(toolConnections.provider)),
+  ]);
+
+  if (accountRows.length === 0 && !policyRow) {
+    return legacyRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      state: "attention_needed",
+      status: row.status,
+      detail: row.detail,
+      lastSuccessfulEventLabel: null,
+    }));
+  }
+
+  const rows: IntegrationDisplayRow[] = accountRows.map((row) => ({
+    id: row.id,
+    name: row.provider === "gmail" ? "Gmail" : "Google Sheets",
+    state:
+      row.status === "connected"
+        ? ("healthy" as const)
+        : row.status === "pending"
+          ? ("attention_needed" as const)
+          : ("degraded" as const),
+    status: titleCase(row.status),
+    detail:
+      row.status === "connected"
+        ? `Connected as ${row.externalAccountLabel}.`
+        : row.reconnectReason ?? `Connection is ${row.status.replace(/_/g, " ")}.`,
+    lastSuccessfulEventLabel: formatTimestampOrNull(row.lastSuccessfulSyncAt),
+  }));
+
+  if (policyRow) {
+    rows.push({
+      id: "openclaw-runtime",
+      name: "OpenClaw runtime",
+      state:
+        policyRow.runtimeStatus === "healthy"
+          ? "healthy"
+          : policyRow.runtimeStatus === "paused"
+            ? "paused"
+            : "degraded",
+      status: titleCase(policyRow.runtimeStatus),
+      detail:
+        policyRow.lastError ??
+        "Operator is applying the managed runtime policy to OpenClaw.",
+      lastSuccessfulEventLabel: formatTimestampOrNull(policyRow.lastObservedAt),
+    });
+  }
 
   return rows;
+}
+
+export async function getWorkspaceHealthCards(
+  organizationId: string,
+): Promise<WorkspaceStatusCard[]> {
+  const db = getDb();
+
+  if (!db) {
+    return [];
+  }
+
+  const [[policyRow], [syncRow], [failedDelivery]] = await Promise.all([
+    db
+      .select({
+        runtimeStatus: agentPolicies.runtimeStatus,
+        lastObservedAt: agentPolicies.lastObservedAt,
+      })
+      .from(agentPolicies)
+      .where(eq(agentPolicies.organizationId, organizationId))
+      .limit(1),
+    db
+      .select({
+        detail: syncRuns.detail,
+        finishedAt: syncRuns.finishedAt,
+        status: syncRuns.status,
+      })
+      .from(syncRuns)
+      .where(
+        and(
+          eq(syncRuns.organizationId, organizationId),
+          eq(syncRuns.kind, "invoice_sync"),
+        ),
+      )
+      .orderBy(desc(syncRuns.startedAt))
+      .limit(1),
+    db
+      .select({
+        approvalItemId: deliveryAttempts.approvalItemId,
+      })
+      .from(deliveryAttempts)
+      .innerJoin(
+        approvalItems,
+        eq(deliveryAttempts.approvalItemId, approvalItems.id),
+      )
+      .where(
+        and(
+          eq(approvalItems.organizationId, organizationId),
+          eq(deliveryAttempts.state, "failed"),
+        ),
+      )
+      .orderBy(desc(deliveryAttempts.createdAt))
+      .limit(1),
+  ]);
+
+  const cards: WorkspaceStatusCard[] = [];
+
+  if (policyRow && policyRow.runtimeStatus !== "healthy") {
+    cards.push(
+      buildOpenClawRuntimeState({
+        lastSuccessfulEventLabel: formatTimestampOrNull(policyRow.lastObservedAt),
+        runtimeStatus:
+          policyRow.runtimeStatus === "paused" ? "paused" : "degraded",
+      }),
+    );
+  }
+
+  if (
+    syncRow &&
+    (syncRow.status === "failed" || syncRow.status === "stalled")
+  ) {
+    cards.push(
+      buildSyncStalledState({
+        providerLabel: "Google Sheets",
+        state: syncRow.status === "failed" ? "degraded" : "attention_needed",
+        lastSuccessfulEventLabel: formatTimestampOrNull(syncRow.finishedAt),
+      }),
+    );
+  }
+
+  if (failedDelivery) {
+    cards.push(
+      buildDeliveryFailureState({
+        approvalItemLabel: failedDelivery.approvalItemId,
+      }),
+    );
+  }
+
+  return cards;
+}
+
+export async function getBillingDisplayState(
+  organizationId: string,
+): Promise<BillingDisplayState | null> {
+  const db = getDb();
+
+  if (!db) {
+    return null;
+  }
+
+  const [row] = await db
+    .select({
+      plan: subscriptions.plan,
+      status: subscriptions.status,
+      trialEndsAt: subscriptions.trialEndsAt,
+      currentPeriodEndsAt: subscriptions.currentPeriodEndsAt,
+    })
+    .from(subscriptions)
+    .where(eq(subscriptions.organizationId, organizationId))
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    plan: titleCase(row.plan),
+    status: titleCase(row.status),
+    trialEndsAt: formatTimestampOrNull(row.trialEndsAt),
+    currentPeriodEndsAt: formatTimestampOrNull(row.currentPeriodEndsAt),
+  };
+}
+
+export async function getAccountDisplayState(
+  organizationId: string,
+): Promise<AccountDisplayState | null> {
+  const db = getDb();
+
+  if (!db) {
+    return null;
+  }
+
+  const [row] = await db
+    .select({
+      workspaceLabel: organizations.workspaceLabel,
+      businessName: organizations.name,
+      workspaceStatus: organizations.status,
+      ownerName: organizations.ownerName,
+      createdAt: organizations.createdAt,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    workspaceLabel: row.workspaceLabel,
+    businessName: row.businessName,
+    workspaceStatus: titleCase(row.workspaceStatus),
+    ownerName: row.ownerName,
+    createdAt: format(row.createdAt, "MMM dd, yyyy"),
+  };
 }
 
 export async function listTeamMembers(
@@ -497,10 +759,17 @@ export async function getSettingsDisplayState(
     return {
       toneGuidance: "",
       channelStates: [],
+      agentPolicy: {
+        gmailSendEnabled: true,
+        googleSheetsReadEnabled: true,
+        killSwitchEnabled: false,
+        runtimeStatus: "Pending",
+        lastError: null,
+      },
     };
   }
 
-  const [[profile], channelRows] = await Promise.all([
+  const [[profile], channelRows, [policyRow]] = await Promise.all([
     db
       .select({
         communicationTone: memoryProfiles.communicationTone,
@@ -517,11 +786,41 @@ export async function getSettingsDisplayState(
       .from(channelStates)
       .where(eq(channelStates.organizationId, organizationId))
       .orderBy(asc(channelStates.channel)),
+    db
+      .select({
+        desiredPolicy: agentPolicies.desiredPolicy,
+        runtimeStatus: agentPolicies.runtimeStatus,
+        lastError: agentPolicies.lastError,
+      })
+      .from(agentPolicies)
+      .where(eq(agentPolicies.organizationId, organizationId))
+      .limit(1),
   ]);
+
+  const desiredPolicy = (policyRow?.desiredPolicy ?? {}) as {
+    tools?: {
+      gmailSend?: boolean;
+      googleSheetsRead?: boolean;
+    };
+    automation?: {
+      killSwitch?: boolean;
+    };
+  };
 
   return {
     toneGuidance: profile?.communicationTone ?? "",
-    channelStates: channelRows,
+    channelStates: channelRows.filter(
+      (row): row is ChannelStateDisplayRow =>
+        row.channel === "web" || row.channel === "email",
+    ),
+    agentPolicy: {
+      gmailSendEnabled: desiredPolicy.tools?.gmailSend ?? true,
+      googleSheetsReadEnabled: desiredPolicy.tools?.googleSheetsRead ?? true,
+      killSwitchEnabled: desiredPolicy.automation?.killSwitch ?? false,
+      runtimeStatus: titleCase(policyRow?.runtimeStatus ?? "pending"),
+      lastError:
+        typeof policyRow?.lastError === "string" ? policyRow.lastError : null,
+    },
   };
 }
 
@@ -559,10 +858,10 @@ export async function getOnboardingDisplayState(
         .limit(1),
       db
         .select({
-          id: toolConnections.id,
+          id: connectedAccounts.id,
         })
-        .from(toolConnections)
-        .where(eq(toolConnections.organizationId, organizationId)),
+        .from(connectedAccounts)
+        .where(eq(connectedAccounts.organizationId, organizationId)),
       db
         .select({
           id: onboardingCheckpoints.id,

@@ -1,4 +1,6 @@
+import { resolveConnectedAccountCredentials } from "@/lib/operator/credentials/resolver";
 import {
+  getCredentialEncryptionSecret,
   getGoogleSheetsAdapterConfig,
   type GoogleSheetsAdapterConfig,
 } from "@/lib/operator/integrations/env";
@@ -105,4 +107,32 @@ export function getGoogleSheetsAdapter(
   }
 
   return new EnvBackedGoogleSheetsAdapter(config, fetchImpl);
+}
+
+export async function getGoogleSheetsAdapterForOrganization(
+  input: Readonly<{
+    organizationId: string;
+    env?: Readonly<Record<string, string | undefined>>;
+    fetchImpl?: typeof fetch;
+  }>,
+) {
+  const env = input.env ?? process.env;
+  const encryptionSecret = getCredentialEncryptionSecret(env);
+  const credentials = await resolveConnectedAccountCredentials({
+    encryptionSecret,
+    organizationId: input.organizationId,
+    provider: "google_sheets",
+  });
+
+  if (!credentials?.accessToken) {
+    throw new GoogleSheetsAdapterNotConfiguredError();
+  }
+
+  return new EnvBackedGoogleSheetsAdapter(
+    {
+      accessToken: credentials.accessToken,
+      apiKey: null,
+    },
+    input.fetchImpl ?? fetch,
+  );
 }

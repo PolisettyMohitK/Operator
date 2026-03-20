@@ -3,14 +3,19 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/operator/db/client";
 import {
   activityLogs,
+  agentPolicies,
   channelStates,
   memberships,
   memoryProfiles,
   organizations,
 } from "@/lib/operator/db/schema";
+import { createDefaultAgentPolicy } from "@/lib/operator/policy/defaults";
+import { persistWorkspaceAgentPolicy } from "@/lib/operator/policy/service";
+import { getOpenClawRuntimeClient } from "@/lib/operator/runtime/openclaw-runtime-client";
+import { createUnavailableRuntimeClient } from "@/lib/operator/runtime/runtime-manager";
 
 type TeamRole = "owner" | "staff" | "approver";
-type DeliveryChannel = "web" | "email" | "whatsapp";
+type DeliveryChannel = "web" | "email";
 
 export type WorkspaceOwnerAccess = Readonly<{
   viewerOrganizationId: string;
@@ -40,9 +45,13 @@ export type UpdateApprovalDelegationInput = Readonly<{
 export type SaveWorkspacePolicyInput = Readonly<{
   actorMembershipId: string;
   organizationId: string;
+  workspaceLabel: string;
   toneGuidance: string;
   reminderPolicy: ReminderPolicy;
   channelPolicies: WorkspaceChannelPolicy[];
+  gmailSendEnabled: boolean;
+  googleSheetsReadEnabled: boolean;
+  killSwitchEnabled: boolean;
 }>;
 
 type ChannelRow = {
@@ -67,11 +76,6 @@ const DEFAULT_CHANNEL_POLICIES: WorkspaceChannelPolicy[] = [
     channel: "email",
     state: "Active",
     note: "Email carries signed approval links and deep-links into the queue.",
-  },
-  {
-    channel: "whatsapp",
-    state: "Action surface",
-    note: "WhatsApp is reserved for fast approval actions and escalation pings.",
   },
 ];
 
@@ -165,6 +169,23 @@ export function parseChannelPolicyFormData(
     state: readString(formData, `channel:${policy.channel}:state`),
     note: readString(formData, `channel:${policy.channel}:note`),
   }));
+}
+
+function readBoolean(formData: FormData, field: string) {
+  const value = formData.get(field);
+
+  return value === "on" || value === "true" || value === "1";
+}
+
+export function parseManagedPolicyFormData(formData: FormData) {
+  return {
+    gmailSendEnabled: readBoolean(formData, "agent:gmailSendEnabled"),
+    googleSheetsReadEnabled: readBoolean(
+      formData,
+      "agent:googleSheetsReadEnabled",
+    ),
+    killSwitchEnabled: readBoolean(formData, "agent:killSwitchEnabled"),
+  };
 }
 
 async function loadMembershipForAdmin(
@@ -261,9 +282,13 @@ export async function updateMemberApprovalDelegation({
 export async function saveWorkspacePolicy({
   actorMembershipId,
   organizationId,
+  workspaceLabel,
   toneGuidance,
   reminderPolicy,
   channelPolicies,
+  gmailSendEnabled,
+  googleSheetsReadEnabled,
+  killSwitchEnabled,
 }: SaveWorkspacePolicyInput) {
   const db = getDb();
 
@@ -379,6 +404,61 @@ export async function saveWorkspacePolicy({
         reminderPolicy,
         channels: channelPolicies.map((policy) => policy.channel),
       },
+    });
+
+    const [existingPolicyRow] = await tx
+      .select({
+        desiredPolicy: agentPolicies.desiredPolicy,
+      })
+      .from(agentPolicies)
+      .where(eq(agentPolicies.organizationId, organizationId))
+      .limit(1);
+
+    const nextPolicy = {
+      ...createDefaultAgentPolicy({
+        toneGuidance: trimmedToneGuidance,
+        workspaceLabel,
+      }),
+      channels: {
+        email:
+          channelPolicies
+            .find((policy) => policy.channel === "email")
+            ?.state.toLowerCase()
+            .includes("active") ?? true,
+        web:
+          channelPolicies
+            .find((policy) => policy.channel === "web")
+            ?.state.toLowerCase()
+            .includes("canonical") ?? true,
+      },
+      automation: {
+        killSwitch: killSwitchEnabled,
+        paused: false,
+      },
+      tools: {
+        gmailSend: gmailSendEnabled,
+        googleSheetsRead: googleSheetsReadEnabled,
+      },
+    };
+
+    if (existingPolicyRow?.desiredPolicy) {
+      const existingPolicy =
+        existingPolicyRow.desiredPolicy as ReturnType<
+          typeof createDefaultAgentPolicy
+        >;
+      nextPolicy.version = existingPolicy.version;
+    }
+
+    await persistWorkspaceAgentPolicy({
+      actorMembershipId,
+      organizationId,
+      policy: nextPolicy,
+      runtimeClient:
+        getOpenClawRuntimeClient(process.env) ??
+        createUnavailableRuntimeClient(
+          "OpenClaw runtime is not configured for this workspace.",
+        ),
+      tx,
     });
   });
 }

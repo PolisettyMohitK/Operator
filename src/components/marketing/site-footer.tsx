@@ -15,8 +15,8 @@ export function SiteFooter() {
             by hand.
           </h2>
           <p className="max-w-2xl text-sm leading-7 text-[color:var(--muted-foreground)]">
-            The first release is intentionally narrow: one workflow, one control
-            room, and one standard for approvals and auditability.
+            Paid V1 stays deliberately narrow: one workflow, one control room,
+            and one standard for approvals, delivery, and auditability.
           </p>
         </div>
 
